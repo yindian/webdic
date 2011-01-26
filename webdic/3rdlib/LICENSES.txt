@@ -1,0 +1,42 @@
+bottle.py
+	URL:	http://bottle.paws.de/
+	License (reformatted):
+		Copyright (c) 2010, Marcel Hellkamp.
+
+		Permission is hereby granted, free of charge, to any person
+		obtaining a copy of this software and associated documentation
+		files (the "Software"), to deal in the Software without
+		restriction, including without limitation the rights to use,
+		copy, modify, merge, publish, distribute, sublicense, and/or
+		sell copies of the Software, and to permit persons to whom the
+		Software is furnished to do so, subject to the following
+		conditions:
+
+		The above copyright notice and this permission notice shall be
+		included in all copies or substantial portions of the
+		Software.
+
+		THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY
+		KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE
+		WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR
+		PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
+		COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+		LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+		OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+		SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+dictzip.py
+	URL:	http://melkor.dnp.fmph.uniba.sk/~garabik/serpento/ (link dead)
+	Author:	Radovan Garabik <garabik@melkor.dnp.fmph.uniba.sk>
+	License:
+		GPL, with the addition: It can be linked with
+		whatever you want, without any restrictions.
+		Welcome to the world of "your opensource license is better 
+		than mine" :-)
+	Comment:
+		I think the license is compatible with the MIT license used by
+		this project as long as I do not modify the content of
+		dictzip.py, according to the free-linking addition in the
+		original license claim.
+		If I am wrong, please feel free to point it out.
+
