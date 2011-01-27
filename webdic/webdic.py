@@ -27,7 +27,7 @@ License (MIT)
 
 '''
 from wdutil import *
-from wdcfg import *
+import wdcfg
 
 @route1('/')
 @route1('/web')
