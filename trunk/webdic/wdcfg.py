@@ -235,6 +235,8 @@ def untagdict(basename, tag):
 		_cfg.set('dicttags', basename, ','.join(_dicttags[basename]))
 	else:
 		_cfg.remove_option('dicttags', basename)
+	if not _tagdicts[tag]:
+		del _tagdicts[tag]
 
 def taglist():
 	'Return a list of available tags in undefined order.'
@@ -244,6 +246,13 @@ def taggeddicts(tag):
 	'''Return a list of basenames of dictionaries with given tag in undefined
 	order.'''
 	return list(_tagdicts.get(tag, []))
+
+def dicttags(basename):
+	'Return a list of tags of given dictionary in undefined order'
+	basename = _cfg.optionxform(basename)
+	if basename not in _dictset:
+		raise KeyError('%s not found in dictionary list.' % (basename,))
+	return list(_dicttags.get(basename, []))
 
 if __name__ == '__main__':
 	# test
@@ -276,6 +285,8 @@ if __name__ == '__main__':
 	print taglist()
 	for t in taglist():
 		print t, taggeddicts(t)
+	for n, p in dictlist():
+		print n, dicttags(n)
 	a,b,c,d = _dictlist[:], _dictset.copy(), _dicttags.copy(), _tagdicts.copy()
 	store()
 	load()
@@ -306,5 +317,10 @@ if __name__ == '__main__':
 		untagdict('En-Ch-newoxford', 'En-Ch')
 	except:
 		traceback.print_exc()
+	print taglist()
+	for t in taglist():
+		print t, taggeddicts(t)
+	for n, p in dictlist():
+		print n, dicttags(n)
 	print 'Seems to work right?'
 # vim:ts=4:sw=4:noet:tw=80
