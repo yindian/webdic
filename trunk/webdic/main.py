@@ -35,7 +35,7 @@ assert __name__ == '__main__'
 opts, args = getopt.getopt(sys.argv[1:], 'p:vh', ['help'])
 opts = dict(opts)
 if opts.has_key('-h') or opts.has_key('--help'):
-	print "Usage: %s [-p port_number] [-v]" % (sys.argv[0])
+	print "Usage: %s [-p port_number] [-v]" % (os.path.basename(sys.argv[0]),)
 	sys.exit(0)
 port = opts.get('-p', 8080)
 
