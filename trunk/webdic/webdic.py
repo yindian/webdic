@@ -32,7 +32,12 @@ import wdcfg
 @route1('/')
 @route1('/web')
 def index():
-    return "<a href='/hello'>Go to Hello World page</a>"
+    return template('web.tpl')
 
+@route('/images/:name')
+@route('/css/:name')
+@route('/js/:name')
+def static(name):
+	return static_file(name, root='./static')
 
 # vim:ts=4:sw=4:noet:tw=80

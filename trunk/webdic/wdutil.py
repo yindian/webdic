@@ -29,7 +29,7 @@ License (MIT)
 import sys, os.path
 sys.path.append(os.path.join(sys.path[0], '3rdlib'))
 
-from bottle import route, run, debug, template, request, response
+from bottle import route, run, debug, template, request, response, static_file
 
 import functools
 @functools.wraps(route)
