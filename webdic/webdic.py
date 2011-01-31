@@ -28,11 +28,27 @@ License (MIT)
 '''
 from wdutil import *
 import wdcfg
+import dicman
 
 @route1('/')
 @route1('/web')
 def index():
     return template('web.tpl')
+
+@route1('/lookup')
+def lookup():
+	query = request.GET.get('q')
+	if not query:
+		abort(400, 'Empty query string.')
+	return template('lookup.tpl', query=query, result=result)
+
+@route1('/manage')
+def manage():
+	action = request.GET.get('action')
+	if action:
+		#redirect('/manage')
+		pass
+	return template('manage.tpl')
 
 @route('/images/:name')
 @route('/css/:name')
