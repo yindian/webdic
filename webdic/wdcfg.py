@@ -165,6 +165,10 @@ def dictlist():
 	'Get the list of dictionaries, each item is a tuple of basename & dict path'
 	return _dictlist[:]
 
+def hasdict(basename):
+	'Test whether specified dictionary is in the dictionary list'
+	return _cfg.optionxform(basename) in _dictset
+
 def adddict(path, basename):
 	'''Add one dictionary with given path and reference basename to the
 	dictionary list. Return the actual basename of this dictionary. The

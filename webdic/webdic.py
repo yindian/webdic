@@ -29,26 +29,107 @@ License (MIT)
 from wdutil import *
 import wdcfg
 import dicman
+import bottle
+import os.path, urllib
+
+def template2(tpl, **kwargs):
+	'Wrapped template with translation'
+	f, e = os.path.splitext(tpl)
+	lang = wdcfg.getlang()
+	if lang != 'en':
+		cand = ''.join((f, '_', lang, e))
+		try:
+			result = template(cand, **kwargs)
+		except bottle.TemplateError:
+			pass
+		else:
+			return result
+	return template(tpl, **kwargs)
+
+_ = lambda s: s
+
+wdcfg.load()
+
+@route1('/redir')
+def redir():
+	url = request.GET.get('url')
+	msg = request.GET.get('msg')
+	if not url:
+		abort(400, _('Invalid redirection URL.'))
+	return template2('redir.tpl', promptmsg=msg, url=url)
+
+def redirect2(url, msg=None):
+	if not msg:
+		redirect('/redir?url=%s' % (urllib.quote(url),))
+	else:
+		redirect('/redir?url=%s&msg=%s' % map(urllib.quote, (url, msg)))
+
+@route1('/reset')
+def reset():
+	wdcfg.load()
+	redirect('/manage')
 
 @route1('/')
 @route1('/web')
 def index():
-    return template('web.tpl')
+    return template2('web.tpl')
 
 @route1('/lookup')
 def lookup():
 	query = request.GET.get('q')
 	if not query:
-		abort(400, 'Empty query string.')
-	return template('lookup.tpl', query=query, result=result)
+		abort(400, _('Empty query string.'))
+	return template2('lookup.tpl', query=query, result=result)
 
 @route1('/manage')
 def manage():
-	action = request.GET.get('action')
-	if action:
-		#redirect('/manage')
-		pass
-	return template('manage.tpl')
+	param = {
+			'dictlist': None,
+			'promptmsg': None,
+			'focusdict': None,
+			}
+	def errmsg(s):
+		param['promptmsg'] = s
+	if request.GET.has_key('add'):
+		path = request.GET.get('path')
+		if path.startswith('"') and path.endswith('"'):
+			path = path[1:-1]
+		if not os.path.exists(path):
+			errmsg(_('File "%s" not exists.') % (path,))
+		else:
+			pass
+	elif request.GET.has_key('up') or request.GET.has_key('down'):
+		focus = request.GET.get('focus')
+		dictlist = dicman.dictlist()
+		p = -1
+		for i in xrange(len(dictlist)):
+			if dictlist[i][0] == focus:
+				p = i
+				break
+		if p >= 0:
+			if request.GET.has_key('up'):
+				if p > 0:
+					dictlist[p-1:p+1] = dictlist[p-1:p+1][::-1]
+				else:
+					dictlist.append(dictlist.pop(0))
+			else:
+				if p < len(dictlist) - 1:
+					dictlist[p:p+2] = dictlist[p:p+2][::-1]
+				else:
+					dictlist.insert(0, dictlist.pop())
+			dicman.reorderdict(dictlist)
+			param['focusdict'] = focus
+	elif request.GET.has_key('del'):
+		focus = request.GET.get('focus')
+		dicman.deldict(focus)
+	elif request.GET.has_key('focus'):
+		focus = request.GET.get('focus')
+		if dicman.hasdict(focus):
+			param['focusdict'] = focus
+	param['dictlist'] = dicman.dictnamelist()
+	if not param['focusdict'] and param['dictlist']:
+		param['focusdict'] = param['dictlist'][0][0]
+	return template2('manage.tpl', **param)
 
 @route('/images/:name')
 @route('/css/:name')

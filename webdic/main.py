@@ -42,7 +42,8 @@ port = opts.get('-p', 8080)
 if opts.has_key('-v'):
 	logging.basicConfig(level=logging.DEBUG)
 
-from webdic import *
+from wdutil import *
+import webdic
 
 if opts.has_key('-v'):
 	debug(True)

@@ -5,7 +5,23 @@
 </head>
 <body>
 <center>
+%if promptmsg:
+{{promptmsg}}
+<hr>
+%end
 <form name="f">
+%if dictlist:
+<select name="focus" size=8>
+%for s, t in dictlist:
+%if s == focusdict:
+ <option selected value="{{s}}">{{t}}</option>
+%else:
+ <option value="{{s}}">{{t}}</option>
+%end
+%end
+</select>
+<br>
+%end
 <input name="add" value="Add" type="submit">
 <input name="up" value="Up" type="submit">
 <input name="down" value="Down" type="submit">
