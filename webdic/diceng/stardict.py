@@ -29,12 +29,41 @@ License (MIT)
 import diceng
 import os.path
 
+def parseifo(path):
+	f = open(path, 'r')
+	try:
+		if f.readline().rstrip('\n') != "StarDict's dict ifo file":
+			raise diceng.ParseError('Invalid ifo file header')
+		d = dict([l.rstrip('\n').split('=', 1) for l in f])
+		if d.get('version') != '2.4.2':
+			raise diceng.ParseError('Invalid ifo version')
+		return (d['bookname'].decode('utf-8'),
+				d['sametypesequence'],
+				int(d['idxfilesize']),
+				int(d['wordcount']),
+				int(d.get('synwordcount', '0')),
+				d)
+	except:
+		raise
+	finally:
+		f.close()
+
 class StardictEngine(diceng.BaseDictionaryEngine):
 	@staticmethod
-	def getbasename(path):
+	def _getbasename(path):
 		root, ext = os.path.splitext(path)
 		if ext.lower() == '.ifo':
-			return os.path.basename(root)
+			try:
+				parseifo(path)
+				return os.path.basename(root)
+			except:
+				pass
+	def _load(self):
+		print 'loading', self._basename
+		self._name, self._sametypeseq, idxsize, self._wordcnt, self._syncnt, d\
+				= parseifo(self._path)
+	def _query(self, qstr, qtype=None, qparam=None):
+		pass
 
 def register():
 	print 'Register Stardict'

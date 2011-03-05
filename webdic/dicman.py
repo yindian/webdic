@@ -28,10 +28,10 @@ License (MIT)
 '''
 from wdutil import *
 import wdcfg
-from wdcfg import dictlist, hasdict, deldict, reorderdict
+from wdcfg import reorderdict
 import diceng
 
-dictpool = []
+dictpool = {}
 _usedpath = set()
 
 def adddict(path):
@@ -40,12 +40,12 @@ def adddict(path):
 	for engine in diceng.enginepool.itervalues():
 		ar = engine.getbasename(path)
 		if ar:
-			if type(ar) not in (type([]), type(())):
+			if hasattr(ar, 'lower'):
 				ar = [ar]
 			result = []
 			for name in ar:
 				name = wdcfg.adddict(path, name)
-				dictpool.append(engine(name, path))
+				dictpool[name] = engine(name, path)
 				result.append(name)
 			_usedpath.add(os.path.abspath(path))
 			return result
@@ -53,13 +53,35 @@ def adddict(path):
 def deldict(basename):
 	d = dict(wdcfg.dictlist())
 	wdcfg.deldict(basename)
+	del dictpool[basename]
 	path = d[basename]
 	del d[basename]
 	if path not in d.values():
 		_usedpath.remove(os.path.abspath(path))
 
+def hasdict(basename):
+	return dictpool.has_key(basename)
+
+def dictlist():
+	result = []
+	for name, path in wdcfg.dictlist():
+		if dictpool.has_key(name):
+			result.append((name, path))
+	return result
+
 def dictnamelist():
-	return wdcfg.dictlist()
+	result = []
+	for name, path in wdcfg.dictlist():
+		if dictpool.has_key(name):
+			result.append((name, dictpool[name].name))
+	return result
+
+def query(qstr, qtype=None, dictfilter=None, detailfilter=None):
+	dictlist = filter(dictpool.has_key, [n for n, p in wdcfg.dictlist()])
+	dictlist = filter(dictfilter, dictlist)
+	enginelist = map(dictpool.get, dictlist)
+	diceng.asyncquery(enginelist, qstr=qstr, qtype=qtype)
+	return diceng.fetchresults()
 
 if __name__ == '__main__':
 	# test
@@ -68,6 +90,12 @@ if __name__ == '__main__':
 	import traceback
 	wdcfg.load()
 	#pdb.set_trace()
-	print adddict(r'Y:\temp\temp\newoxford\mob\out\En-Ch-newoxford.ifo')
+	ar = adddict(r'Y:\temp\temp\newoxford\mob\out\En-Ch-newoxford.ifo')
+	print ar
+	print dictpool, _usedpath
+	print query('hello')
+	for s in ar:
+		deldict(s)
+	print dictpool, _usedpath
 
 # vim:ts=4:sw=4:noet:tw=80

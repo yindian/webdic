@@ -97,7 +97,9 @@ def manage():
 		if not os.path.exists(path):
 			errmsg(_('File "%s" not exists.') % (path,))
 		else:
-			pass
+			ar = dicman.adddict(path)
+			if ar:
+				param['focusdict'] = ar[0]
 	elif request.GET.has_key('up') or request.GET.has_key('down'):
 		focus = request.GET.get('focus')
 		dictlist = dicman.dictlist()
