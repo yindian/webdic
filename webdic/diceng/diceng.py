@@ -42,21 +42,27 @@ class BaseDictionaryEngine(object):
 		self._lock = threading.Lock()
 		self._loaded = False
 		switchcontext(self.load)
+	@staticmethod
+	def _getbasename(path): pass
 	@classmethod
 	def getbasename(cls, path):
 		'Return a list of available basenames if the given file is in supported'
 		' format. Return None or empty list otherwise.'
 		return cls._getbasename(path)
+	def _load(self): pass
 	def load(self):
 		'Load dictionary data from disk synchronously.'
 		self.lock()
 		try:
+			t = time.clock()
 			self._load()
+			self.loadtime = time.clock() - t
 			self._loaded = True
 		except:
 			raise
 		finally:
 			self.unlock()
+	def _query(self, qstr, qtype=None, qparam=None): pass
 	def query(self, qstr, qtype=None, qparam=None):
 		'Query given pattern and return a list of matching words synchronously.'
 		' The query type and param are defined by specific engines. The return '
@@ -75,6 +81,7 @@ class BaseDictionaryEngine(object):
 			raise
 		finally:
 			self.unlock()
+	def _querynum(self, qstr, qtype=None, qparam=None): pass
 	def querynum(self, qstr, qtype=None, qparam=None):
 		'Query given pattern and return the number of matching words '
 		'synchronously.'
@@ -92,6 +99,7 @@ class BaseDictionaryEngine(object):
 			raise
 		finally:
 			self.unlock()
+	def _detail(self, word=None, wordid=None): pass
 	def detail(self, word=None, wordid=None):
 		'Return detailed explanation of given word in a query result list.'
 		retry = 5
@@ -229,9 +237,22 @@ def fetchresults():
 	ar.sort()
 	return [s[1:] for s in ar]
 
-enginepool = {}
+_enginepool = {}
 
 def registerengine(name, engine):
-	enginepool[name] = engine
+	global _enginepool
+	_enginepool[name] = engine
+
+def iterengine():
+	return _enginepool.itervalues()
+
+_cachedir = ''
+
+def setcachedir(path):
+	global _cachedir
+	_cachedir = path
+
+def getcachedir():
+	return _cachedir
 
 # vim:ts=4:sw=4:noet:tw=80

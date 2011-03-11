@@ -37,7 +37,7 @@ _usedpath = set()
 def adddict(path):
 	if os.path.abspath(path) in _usedpath:
 		return
-	for engine in diceng.enginepool.itervalues():
+	for engine in diceng.iterengine():
 		ar = engine.getbasename(path)
 		if ar:
 			if hasattr(ar, 'lower'):
@@ -49,6 +49,7 @@ def adddict(path):
 				result.append(name)
 			_usedpath.add(os.path.abspath(path))
 			return result
+	return []
 
 def deldict(basename):
 	d = dict(wdcfg.dictlist())
@@ -88,9 +89,15 @@ if __name__ == '__main__':
 	import pprint
 	import pdb
 	import traceback
+	import time
 	wdcfg.load()
+	diceng.setcachedir(wdcfg.CACHEDIR)
 	#pdb.set_trace()
+	t = time.clock()
 	ar = adddict(r'Y:\temp\temp\newoxford\mob\out\En-Ch-newoxford.ifo')
+	ar = adddict(r'Y:\temp\temp\newoxford\out\newoxford.ifo')
+	diceng.diceng._taskqueue.join()
+	print 'Loading time:', time.clock() - t
 	print ar
 	print dictpool, _usedpath
 	print query('hello')
