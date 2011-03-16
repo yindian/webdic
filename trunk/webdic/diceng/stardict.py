@@ -29,6 +29,7 @@ License (MIT)
 import diceng
 import os, string, struct, re, gzip, dictzip
 import logging, traceback
+import pdb
 
 def parseifo(path):
 	f = open(path, 'r')
@@ -68,8 +69,8 @@ def hascache(root, basename, ext, size=0):
 	return True
 
 idxentrypat = re.compile(r'(.*?)\x00.{8}', re.S)
-synentrypat = re.compile(r'(.*?)\x00.{4}', re.S)
-lower = string.lower
+synentrypat = re.compile(r'(.*?)\x00(.{4})', re.S)
+collate = string.lower
 
 class StardictEngine(diceng.BaseDictionaryEngine):
 	@staticmethod
@@ -91,64 +92,160 @@ class StardictEngine(diceng.BaseDictionaryEngine):
 			self._idxf = open(root + '.idx', 'rb')
 		except IOError:
 			self._idxf = gzip.GzipFile(root + '.idx.gz', 'rb')
-		if hascache(root, self._basename, '.pos', size=4*self._wordcnt):
-			f = open(getcachepath(self._basename, '.pos'), 'rb')
-			buf = f.read()
-			f.close()
-			self._indices = struct.unpack('<%dL' % (self._wordcnt,), buf)
-			indices = None
+		if self._syncnt == 0:
+			if hascache(root, self._basename, '.pos', size=4*self._wordcnt):
+				f = open(getcachepath(self._basename, '.pos'), 'rb')
+				buf = f.read()
+				f.close()
+				self._indices = struct.unpack('<%dL' % (self._wordcnt,), buf)
+			else:
+				buf = self._idxf.read()
+				assert self._idxf.tell() == idxsize
+				indices = [] #(collated word, entry offset)
+				pos = 0
+				for s in idxentrypat.findall(buf):
+					indices.append((collate(s.decode('utf-8')), pos, pos))
+					pos += len(s) + 9
+				assert pos == idxsize
+				indices.sort()
+				self._indices = [p for s, p, pp in indices]
+				f = open(getcachepath(self._basename, '.pos'), 'wb')
+				f.write(struct.pack('<%dL' % (self._wordcnt,), *self._indices))
+				f.close()
+			assert len(self._indices) == self._wordcnt
+			self._synf = None
 		else:
-			buf = self._idxf.read()
-			assert self._idxf.tell() == idxsize
-			indices = [] #(collated word, entry offset)
-			pos = 0
-			for s in idxentrypat.findall(buf):
-				indices.append((lower(s.decode('utf-8')), pos))
-				pos += len(s) + 9
-			assert pos == idxsize
-			indices.sort()
-			self._indices = [p for s, p in indices]
-			f = open(getcachepath(self._basename, '.pos'), 'wb')
-			f.write(struct.pack('<%dL' % (self._wordcnt,), *self._indices))
-			f.close()
-		assert len(self._indices) == self._wordcnt
-		if self._syncnt > 0:
 			try:
 				self._synf = open(root + '.syn', 'rb')
 			except IOError:
 				self._synf = gzip.GzipFile(root + '.syn.gz', 'rb')
-			if hascache(root, self._basename, '.spo', size=4*(self._wordcnt +
-				self._syncnt)):
+			assert idxsize < 0x80000000
+			totalcnt = self._wordcnt + self._syncnt
+			if hascache(root, self._basename, '.spo', size=8*totalcnt):
 				f = open(getcachepath(self._basename, '.spo'), 'rb')
-				buf = f.read()
+				self._indices = zip(struct.unpack('<%dL' % (totalcnt,),
+					f.read(4*totalcnt)), struct.unpack('<%dL' % (totalcnt,),
+						f.read()))
 				f.close()
-				self._synindices = struct.unpack('<%dL' % (len(buf)/4,), buf)
 			else:
-				if indices is None:
-					buf = self._idxf.read()
-					assert self._idxf.tell() == idxsize
-					indices = [] #(collated word, entry offset)
-					pos = 0
-					for s in idxentrypat.findall(buf):
-						indices.append((lower(s.decode('utf-8')), pos))
-						pos += len(s) + 9
-					assert pos == idxsize
+				buf = self._idxf.read()
+				assert self._idxf.tell() == idxsize
+				indices = [] #(collated word, entry offset)
+				pos = 0
+				for s in idxentrypat.findall(buf):
+					indices.append((collate(s.decode('utf-8')), pos, pos))
+					pos += len(s) + 9
+				assert pos == idxsize
 				buf = self._synf.read()
 				pos = 0
-				for s in synentrypat.findall(buf):
-					indices.append((lower(s.decode('utf-8')), pos & 0x8000000))
+				for s, t in synentrypat.findall(buf):
+					x = struct.unpack('!L', t)[0]
+					indices.append((collate(s.decode('utf-8')), pos| 0x80000000,
+						indices[x][1]))
 					pos += len(s) + 5
 				assert len(indices) ==  self._wordcnt + self._syncnt
+				assert pos == self._synf.tell()
 				indices.sort()
-				self._synindices = [p for s, p in indices]
+				ar = [p for s, p, pp in indices]
+				br = [pp for s, p, pp in indices]
+				self._indices = zip(ar, br)
 				f = open(getcachepath(self._basename, '.spo'), 'wb')
-				f.write(struct.pack('<%dL' % (len(indices),),*self._synindices))
+				f.write(struct.pack('<%dL'% (len(indices),),
+					*ar))
+				f.write(struct.pack('<%dL'% (len(indices),),
+					*br))
 				f.close()
+			assert len(self._indices) == totalcnt
+		self._lastqstr = self._lastqtype = self._lastqparam = None
+		self._lastqmethod = self._lastqresult = None
+		# index -> (collated word, word, refword, offset, length)
+		self._cache = {}
+		self._cachesize = 50
+	def _get_idx(self, idx):
+		if self._cache.has_key(idx):
+			return self._cache[idx]
+		result = None
+		if self._syncnt == 0:
+			pos = self._indices[idx]
+			self._idxf.seek(pos)
+			buf = self._idxf.read(64)
+			while buf.find('\0') < 0:
+				buf += self._idxf.read(64)
+			p = buf.index('\0')
+			if len(buf) - p < 9:
+				buf += self._idxf.read(8)
+			word = buf[:p]
+			offset, length = struct.unpack('!LL', buf[p+1:p+9])
+			result = [collate(word), word, None, offset, length]
 		else:
-			self._synf = self._synindices = None
+			if self._indices[idx][0] & 0x80000000:
+				pos = self._indices[idx][0] & 0x7FFFFFFF
+				self._synf.seek(pos)
+				buf = self._synf.read(64)
+				while buf.find('\0') < 0:
+					buf += self._synf.read(64)
+				word = buf[:buf.index('\0')]
+				pos = self._indices[idx][1]
+				self._idxf.seek(pos)
+				buf = self._idxf.read(64)
+				while buf.find('\0') < 0:
+					buf += self._idxf.read(64)
+				p = buf.index('\0')
+				if len(buf) - p < 9:
+					buf += self._idxf.read(8)
+				refword = buf[:p]
+				offset, length = struct.unpack('!LL', buf[p+1:p+9])
+				result = [collate(word), word, refword, offset, length]
+			else:
+				pos = self._indices[idx][1]
+				self._idxf.seek(pos)
+				buf = self._idxf.read(64)
+				while buf.find('\0') < 0:
+					buf += self._idxf.read(64)
+				p = buf.index('\0')
+				if len(buf) - p < 9:
+					buf += self._idxf.read(8)
+				word = buf[:p]
+				offset, length = struct.unpack('!LL', buf[p+1:p+9])
+				result = [collate(word), word, None, offset, length]
+		self._cache[idx] = result
+		return result
+	def _locate(self, word):
+		key = collate(word)
+		lo = 0
+		hi = top = len(self._indices)
+		while lo < hi:
+			mid = (lo + hi) / 2
+			ar = self._get_idx(mid)
+			c = cmp(key, ar[0])
+			if c < 0: # lo word mid hi
+				hi = mid
+			elif c > 0: # lo mid word hi
+				lo = mid + 1
+			else:
+				lo = mid
+				break
+		if lo >= top and lo > 0:
+			lo = top - 1
+		while lo > 0 and self._get_idx(lo-1)[0] == key:
+			lo -= 1
+		while lo < top-1 and self._get_idx(lo)[0] < key:
+			lo += 1
+		return lo
 	def _query(self, qstr, qtype=None, qparam=None):
+		if (self._lastqmethod == 0 and self._lastqstr == qstr and 
+				self._lastqtype == qtype and self._lastqparam == qparam):
+			return self._lastqresult
+		result = []
 		if qtype is None or qtype in (diceng.QRY_EXACT, diceng.QRY_BEGIN):
-			pass
+			idx = self._locate(qstr)
+			result.append((idx, self._get_idx(idx)[1]))
+		self._lastqmethod = 0
+		self._lastqstr = qstr
+		self._lastqtype = qtype
+		self._lastqparam = qparam
+		self._lastqresult = result
+		return result[:]
 
 def register():
 	print 'Register Stardict'
