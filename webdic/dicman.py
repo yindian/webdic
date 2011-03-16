@@ -100,7 +100,9 @@ if __name__ == '__main__':
 	print 'Loading time:', time.clock() - t
 	print ar
 	print dictpool, _usedpath
-	print query('hello')
+	t = time.clock()
+	print 'Hello:', query('hello')
+	print 'Query time:', time.clock() - t
 	for s in ar:
 		deldict(s)
 	print dictpool, _usedpath
