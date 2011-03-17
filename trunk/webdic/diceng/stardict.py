@@ -28,6 +28,10 @@ License (MIT)
 '''
 import diceng
 import os, string, struct, re, gzip, dictzip
+try:
+	import cStringIO as StringIO
+except:
+	import StringIO
 import logging, traceback
 import pdb
 
@@ -68,6 +72,13 @@ def hascache(root, basename, ext, size=0):
 		return False
 	return True
 
+def GzipFile(filename, mode="rb", compresslevel=9, fileobj=None):
+	f = gzip.GzipFile(filename,
+			mode=mode, compresslevel=compresslevel, fileobj=fileobj)
+	g = StringIO.StringIO(f.read())
+	f.close()
+	return g
+
 idxentrypat = re.compile(r'(.*?)\x00.{8}', re.S)
 synentrypat = re.compile(r'(.*?)\x00(.{4})', re.S)
 collate = string.lower
@@ -91,7 +102,7 @@ class StardictEngine(diceng.BaseDictionaryEngine):
 		try:
 			self._idxf = open(root + '.idx', 'rb')
 		except IOError:
-			self._idxf = gzip.GzipFile(root + '.idx.gz', 'rb')
+			self._idxf = GzipFile(root + '.idx.gz', 'rb')
 		if self._syncnt == 0:
 			if hascache(root, self._basename, '.pos', size=4*self._wordcnt):
 				f = open(getcachepath(self._basename, '.pos'), 'rb')
@@ -118,7 +129,7 @@ class StardictEngine(diceng.BaseDictionaryEngine):
 			try:
 				self._synf = open(root + '.syn', 'rb')
 			except IOError:
-				self._synf = gzip.GzipFile(root + '.syn.gz', 'rb')
+				self._synf = GzipFile(root + '.syn.gz', 'rb')
 			assert idxsize < 0x80000000
 			totalcnt = self._wordcnt + self._syncnt
 			if hascache(root, self._basename, '.spo', size=8*totalcnt):
@@ -156,6 +167,7 @@ class StardictEngine(diceng.BaseDictionaryEngine):
 					*br))
 				f.close()
 			assert len(self._indices) == totalcnt
+		self._totalcnt = len(self._indices)
 		self._lastqstr = self._lastqtype = self._lastqparam = None
 		self._lastqmethod = self._lastqresult = None
 		# index -> (collated word, word, refword, offset, length)
@@ -213,7 +225,7 @@ class StardictEngine(diceng.BaseDictionaryEngine):
 	def _locate(self, word):
 		key = collate(word)
 		lo = 0
-		hi = top = len(self._indices)
+		hi = top = self._totalcnt
 		while lo < hi:
 			mid = (lo + hi) / 2
 			ar = self._get_idx(mid)
@@ -232,20 +244,67 @@ class StardictEngine(diceng.BaseDictionaryEngine):
 		while lo < top-1 and self._get_idx(lo)[0] < key:
 			lo += 1
 		return lo
+	def _get_idx_range(self, qstr, qtype):
+		idxbeg = idxend = self._locate(qstr)
+		key = collate(qstr)
+		if qtype == diceng.QRY_EXACT:
+			while (idxend < self._totalcnt and
+					self._get_idx(idxend)[0] == key):
+				idxend += 1
+			idxend -= 1
+		else:
+			lo = idxend + 1
+			hi = min(lo + 4, self._totalcnt)
+			step = 8
+			while (hi < self._totalcnt and
+					self._get_idx(hi)[0].startswith(key)):
+				lo = hi
+				hi += step
+				step *= 2
+			if hi > self._totalcnt:
+				hi = self._totalcnt
+			while lo < hi:
+				mid = (lo + hi) / 2
+				if self._get_idx(mid)[0].startswith(key):
+					lo = mid + 1
+				else:
+					hi = mid
+			if (lo < self._totalcnt and
+					not self._get_idx(lo)[0].startswith(key)):
+				idxend = lo - 1
+		return idxbeg, idxend+1
 	def _query(self, qstr, qtype=None, qparam=None):
+		if qtype is None:
+			qtype = diceng.QRY_EXACT
 		if (self._lastqmethod == 0 and self._lastqstr == qstr and 
 				self._lastqtype == qtype and self._lastqparam == qparam):
 			return self._lastqresult
 		result = []
-		if qtype is None or qtype in (diceng.QRY_EXACT, diceng.QRY_BEGIN):
-			idx = self._locate(qstr)
-			result.append((idx, self._get_idx(idx)[1]))
+		if qtype == diceng.QRY_EXACT or qtype == diceng.QRY_BEGIN:
+			for idx in xrange(*self._get_idx_range(qstr, qtype)):
+				result.append((idx, self._get_idx(idx)[1]))
 		self._lastqmethod = 0
 		self._lastqstr = qstr
 		self._lastqtype = qtype
 		self._lastqparam = qparam
 		self._lastqresult = result
 		return result[:]
+	def _querynum(self, qstr, qtype=None, qparam=None):
+		if qtype is None:
+			qtype = diceng.QRY_EXACT
+		if (self._lastqmethod == 1 and self._lastqstr == qstr and 
+				self._lastqtype == qtype and self._lastqparam == qparam):
+			return self._lastqresult
+		result = None
+		if qtype == diceng.QRY_EXACT or qtype == diceng.QRY_BEGIN:
+			idxbeg, idxend = self._get_idx_range(qstr, qtype)
+			result = idxend - idxbeg
+		self._lastqmethod = 1
+		self._lastqstr = qstr
+		self._lastqtype = qtype
+		self._lastqparam = qparam
+		self._lastqresult = result
+		return result
 
 def register():
 	print 'Register Stardict'

@@ -45,7 +45,8 @@ def adddict(path):
 			result = []
 			for name in ar:
 				name = wdcfg.adddict(path, name)
-				dictpool[name] = engine(name, path)
+				dictpool[name] = engine(name, path,
+						lambda f: deldict(name))
 				result.append(name)
 			_usedpath.add(os.path.abspath(path))
 			return result
@@ -77,11 +78,11 @@ def dictnamelist():
 			result.append((name, dictpool[name].name))
 	return result
 
-def query(qstr, qtype=None, dictfilter=None, detailfilter=None):
+def query(qstr, qtype=None, cmd=diceng.CMD_QUERY, dictfilter=None, detailfilter=None):
 	dictlist = filter(dictpool.has_key, [n for n, p in wdcfg.dictlist()])
 	dictlist = filter(dictfilter, dictlist)
 	enginelist = map(dictpool.get, dictlist)
-	diceng.asyncquery(enginelist, qstr=qstr, qtype=qtype)
+	diceng.asyncquery(enginelist, cmd=cmd, qstr=qstr, qtype=qtype)
 	return diceng.fetchresults()
 
 if __name__ == '__main__':
@@ -101,9 +102,24 @@ if __name__ == '__main__':
 	print ar
 	print dictpool, _usedpath
 	t = time.clock()
-	print 'Hello:', query('hello')
+	print 'Hello:', pprint.pformat(query('hello'))
 	print 'Query time:', time.clock() - t
-	for s in ar:
+	t = time.clock()
+	print 'Hello:', pprint.pformat(query('Hello', diceng.QRY_BEGIN))
+	print 'Query time:', time.clock() - t
+	t = time.clock()
+	print 'yours:', pprint.pformat(query('yours', diceng.QRY_BEGIN))
+	print 'Query time:', time.clock() - t
+	t = time.clock()
+	print 'y:', query('y', diceng.QRY_BEGIN, diceng.CMD_QRYNUM)
+	print 'Query time:', time.clock() - t
+	t = time.clock()
+	print 'a:', query('a', diceng.QRY_BEGIN, diceng.CMD_QRYNUM)
+	print 'Query time:', time.clock() - t
+	t = time.clock()
+	print ':', query('', diceng.QRY_BEGIN, diceng.CMD_QRYNUM)
+	print 'Query time:', time.clock() - t
+	for s, p in dictlist():
 		deldict(s)
 	print dictpool, _usedpath
 

@@ -36,12 +36,15 @@ class ParseError(Exception):
 
 class BaseDictionaryEngine(object):
 	'Base class for all dictionary engines that defines basic interfaces.'
-	def __init__(self, basename, path):
+	def __init__(self, basename, path, failcb=None):
 		self._basename = basename
 		self._path = path
 		self._lock = threading.Lock()
 		self._loaded = False
-		switchcontext(self.load)
+		self.lock()
+		switchcontext(self.load, _exception_callback=failcb)
+	def __repr__(self):
+		return '<%s (%s)>' % (self._basename, self.__class__.__name__)
 	@staticmethod
 	def _getbasename(path): pass
 	@classmethod
@@ -52,7 +55,6 @@ class BaseDictionaryEngine(object):
 	def _load(self): pass
 	def load(self):
 		'Load dictionary data from disk synchronously.'
-		self.lock()
 		try:
 			t = time.clock()
 			self._load()
@@ -67,13 +69,6 @@ class BaseDictionaryEngine(object):
 		'Query given pattern and return a list of matching words synchronously.'
 		' The query type and param are defined by specific engines. The return '
 		'result is a list of (wordid, word) pairs.'
-		retry = 5
-		while not self._loaded and retry:
-			time.sleep(0.1)
-			retry -= 1
-		if not self._loaded:
-			logging.error('%s not loaded' % (self,))
-			return
 		self.lock()
 		try:
 			return self._query(qstr, qtype=qtype, qparam=qparam)
@@ -85,13 +80,6 @@ class BaseDictionaryEngine(object):
 	def querynum(self, qstr, qtype=None, qparam=None):
 		'Query given pattern and return the number of matching words '
 		'synchronously.'
-		retry = 5
-		while not self._loaded and retry:
-			time.sleep(0.1)
-			retry -= 1
-		if not self._loaded:
-			logging.error('%s not loaded' % (self,))
-			return
 		self.lock()
 		try:
 			return self._querynum(qstr, qtype=qtype, qparam=qparam)
@@ -102,13 +90,6 @@ class BaseDictionaryEngine(object):
 	def _detail(self, word=None, wordid=None): pass
 	def detail(self, word=None, wordid=None):
 		'Return detailed explanation of given word in a query result list.'
-		retry = 5
-		while not self._loaded and retry:
-			time.sleep(0.1)
-			retry -= 1
-		if not self._loaded:
-			logging.error('%s not loaded' % (self,))
-			return
 		self.lock()
 		try:
 			return self._detail(qstr, qtype=qtype, qparam=qparam)
@@ -155,6 +136,11 @@ class _AgentThread(threading.Thread):
 	def run(self):
 		while True:
 			cb, fct, args, kwargs = self._q.get()
+			if kwargs.has_key('_exception_callback'):
+				ecb = kwargs['_exception_callback']
+				del kwargs['_exception_callback']
+			else:
+				ecb = None
 			try:
 				result = fct(*args, **kwargs)
 				if cb:
@@ -162,6 +148,8 @@ class _AgentThread(threading.Thread):
 			except:
 				logging.error('cb=%s, fct=%s, args=%s, kwargs=%s\n%s' % (
 					cb, fct, args, kwargs, traceback.format_exc()))
+				if ecb:
+					ecb(fct)
 			self._q.task_done()
 
 _taskqueue = Queue.Queue()
