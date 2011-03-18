@@ -79,6 +79,7 @@ def lookup():
 	query = request.GET.get('q')
 	if not query:
 		abort(400, _('Empty query string.'))
+	result = dicman.query(query)
 	return template2('lookup.tpl', query=query, result=result)
 
 @route1('/manage')
