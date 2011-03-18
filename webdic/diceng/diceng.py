@@ -92,7 +92,7 @@ class BaseDictionaryEngine(object):
 		'Return detailed explanation of given word in a query result list.'
 		self.lock()
 		try:
-			return self._detail(qstr, qtype=qtype, qparam=qparam)
+			return self._detail(word=word, wordid=wordid)
 		except:
 			raise
 		finally:

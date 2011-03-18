@@ -30,11 +30,12 @@ from wdutil import *
 import wdcfg
 from wdcfg import reorderdict
 import diceng
+import types
 
 dictpool = {}
 _usedpath = set()
 
-def adddict(path):
+def _adddict(path):
 	if os.path.abspath(path) in _usedpath:
 		return
 	for engine in diceng.iterengine():
@@ -51,6 +52,14 @@ def adddict(path):
 			_usedpath.add(os.path.abspath(path))
 			return result
 	return []
+
+def adddict(paths):
+	if type(paths) in types.StringTypes:
+		_adddict(paths)
+	else:
+		for path in paths:
+			_adddict(path)
+	diceng.diceng._taskqueue.join()
 
 def deldict(basename):
 	d = dict(wdcfg.dictlist())
@@ -78,11 +87,11 @@ def dictnamelist():
 			result.append((name, dictpool[name].name))
 	return result
 
-def query(qstr, qtype=None, cmd=diceng.CMD_QUERY, dictfilter=None, detailfilter=None):
+def query(qstr, qtype=None, cmd=diceng.CMD_QUERY, qparam=None, dictfilter=None, detailfilter=None):
 	dictlist = filter(dictpool.has_key, [n for n, p in wdcfg.dictlist()])
 	dictlist = filter(dictfilter, dictlist)
 	enginelist = map(dictpool.get, dictlist)
-	diceng.asyncquery(enginelist, cmd=cmd, qstr=qstr, qtype=qtype)
+	diceng.asyncquery(enginelist, cmd=cmd, qstr=qstr, qtype=qtype, qparam=qparam)
 	return diceng.fetchresults()
 
 if __name__ == '__main__':
@@ -129,6 +138,13 @@ if __name__ == '__main__':
 	print 'Query time:', time.clock() - t
 	print 'a:'
 	query('a', diceng.QRY_BEGIN)
+	print 'Query time:', time.clock() - t
+	t = time.clock()
+	print 'a:', pprint.pformat(query('a', diceng.QRY_BEGIN, qparam=10))
+	print 'Query time:', time.clock() - t
+	t = time.clock()
+	print 'cop:'
+	query('cop', cmd=diceng.CMD_DETAIL)
 	print 'Query time:', time.clock() - t
 	for s, p in dictlist():
 		deldict(s)

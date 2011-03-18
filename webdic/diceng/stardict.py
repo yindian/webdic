@@ -28,6 +28,7 @@ License (MIT)
 '''
 import diceng
 import os, string, struct, re, gzip, dictzip
+import types
 try:
 	import cStringIO as StringIO
 except:
@@ -155,6 +156,10 @@ class StardictEngine(diceng.BaseDictionaryEngine):
 				= parseifo(self._path)
 		root, ext = os.path.splitext(self._path)
 		try:
+			self._dicf = dictzip.DictzipFile(root + '.dict.dz', 'rb')
+		except IOError:
+			self._dicf = open(root + '.dict', 'rb')
+		try:
 			self._idxf = open(root + '.idx', 'rb')
 		except IOError:
 			self._idxf = GzipFile(root + '.idx.gz', 'rb')
@@ -225,6 +230,8 @@ class StardictEngine(diceng.BaseDictionaryEngine):
 		self._totalcnt = len(self._indices)
 		self._lastqstr = self._lastqtype = self._lastqparam = None
 		self._lastqmethod = self._lastqresult = None
+		self._lastidxstr = self._lastidxtype = self._lastidxrange = None
+		self._lastlocatestr = self._lastlocatepos = None
 		# index -> (collated word, word, refword, offset, length)
 		self._cache = {}
 	def _get_idx(self, idx):
@@ -277,6 +284,8 @@ class StardictEngine(diceng.BaseDictionaryEngine):
 		self._cache[idx] = result
 		return result
 	def _locate(self, word):
+		if self._lastlocatestr == word:
+			return self._lastlocatepos
 		key = collate(word)
 		lo = 0
 		hi = top = self._totalcnt
@@ -297,8 +306,11 @@ class StardictEngine(diceng.BaseDictionaryEngine):
 			lo -= 1
 		while lo < top-1 and self._get_idx(lo)[0] < key:
 			lo += 1
+		self._lastlocatepos = lo
 		return lo
 	def _get_idx_range(self, qstr, qtype):
+		if self._lastidxstr == qstr and self._lastidxtype == qtype:
+			return self._lastidxrange
 		idxbeg = idxend = self._locate(qstr)
 		key = collate(qstr)
 		if qtype == diceng.QRY_EXACT:
@@ -326,7 +338,10 @@ class StardictEngine(diceng.BaseDictionaryEngine):
 			if lo == self._totalcnt or (lo < self._totalcnt and
 					not self._get_idx(lo)[0].startswith(key)):
 				idxend = lo - 1
-		return idxbeg, idxend+1
+		self._lastidxstr = qstr
+		self._lastidxtype = qtype
+		self._lastidxrange = idxbeg, idxend+1
+		return self._lastidxrange
 	def _query(self, qstr, qtype=None, qparam=None):
 		if qtype is None:
 			qtype = diceng.QRY_EXACT
@@ -335,8 +350,18 @@ class StardictEngine(diceng.BaseDictionaryEngine):
 			return self._lastqresult
 		result = []
 		if qtype == diceng.QRY_EXACT or qtype == diceng.QRY_BEGIN:
-			for idx in xrange(*self._get_idx_range(qstr, qtype)):
-				result.append((idx, self._get_idx(idx)[1]))
+			idxbeg, idxend = self._get_idx_range(qstr, qtype)
+			if qparam is not None:
+				if type(qparam) == types.IntType:
+					idxend = min(idxend, idxbeg + qparam)
+				elif type(qparam) == types.DictType and qparam.get('maxnum', 0):
+					idxend = min(idxend, idxbeg + qparam['maxnum'])
+			for idx in xrange(idxbeg, idxend):
+				ar = self._get_idx(idx)
+				if ar[2] is None:
+					result.append((idx, ar[1]))
+				else:
+					result.append((idx, '%s\0%s' % (ar[1], ar[2])))
 		self._lastqmethod = 0
 		self._lastqstr = qstr
 		self._lastqtype = qtype
@@ -359,6 +384,24 @@ class StardictEngine(diceng.BaseDictionaryEngine):
 		self._lastqparam = qparam
 		self._lastqresult = result
 		return result
+	def _html_render(self, buf):
+		return buf
+	def _detail(self, word=None, wordid=None):
+		if wordid is not None:
+			ar = self._get_idx(self, wordid)
+			# (collated word, word, refword, offset, length)
+			self._dicf.seek(ar[3])
+			buf = self._dicf.read(ar[4])
+			return [(ar[1], self._html_render(buf))]
+		else:
+			idxbeg, idxend = self._get_idx_range(word, diceng.QRY_EXACT)
+			result = []
+			for idx in xrange(idxbeg, idxend):
+				ar = self._get_idx(idx)
+				self._dicf.seek(ar[3])
+				buf = self._dicf.read(ar[4])
+				result.append((ar[1], self._html_render(buf)))
+			return result
 
 def register():
 	print 'Register Stardict'
