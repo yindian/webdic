@@ -79,6 +79,61 @@ def GzipFile(filename, mode="rb", compresslevel=9, fileobj=None):
 	f.close()
 	return g
 
+class CachedFile(file):
+	'I thought it would be faster than builtin file, but it proved false.'
+	def __init__(self, *a, **k):
+		file.__init__(self, *a, **k)
+		self._cache1 = self._cache1pos = None
+		self._cache2 = self._cache2pos = None
+	def read(self, size=-1):
+		if size < 0 or size > 0x10000:
+			return file.read(self)
+		elif size == 0:
+			return ''
+		w = self.tell()
+		blk = w ^ (w & 0xFFFF)
+		t = w + size - blk
+		if self._cache1pos == blk:
+			if t <= len(self._cache1):
+				self.seek(w+size)
+				return self._cache1[w-blk:t]
+			elif len(self._cache1) < 0x10000:
+				return file.read(self, size)
+			elif self._cache2pos == blk + 0x10000:
+				self.seek(w+size)
+				return self._cache1[w-blk:] + self._cache2[:t-0x10000]
+			else:
+				self._cache2pos = blk + 0x10000
+				self.seek(self._cache2pos)
+				self._cache2 = file.read(self, 0x10000)
+				self.seek(w+size)
+				return self._cache1[w-blk:] + self._cache2[:t-0x10000]
+		elif self._cache2pos == blk:
+			if t <= len(self._cache2):
+				self.seek(w+size)
+				return self._cache2[w-blk:t]
+			elif len(self._cache2) < 0x10000:
+				return file.read(self, size)
+			elif self._cache1pos == blk + 0x10000:
+				self.seek(w+size)
+				return self._cache2[w-blk:] + self._cache1[:t-0x10000]
+			else:
+				self._cache1pos = blk + 0x10000
+				self.seek(self._cache1pos)
+				self._cache1 = file.read(self, 0x10000)
+				self.seek(w+size)
+				return self._cache2[w-blk:] + self._cache1[:t-0x10000]
+		else:
+			self._cache1pos = blk
+			self.seek(blk)
+			self._cache1 = file.read(self, 0x10000)
+			if w + size < blk + len(self._cache1):
+				self.seek(w+size)
+				return self._cache1[w-blk:t]
+			else:
+				self.seek(w)
+				return file.read(self, size)
+
 idxentrypat = re.compile(r'(.*?)\x00.{8}', re.S)
 synentrypat = re.compile(r'(.*?)\x00(.{4})', re.S)
 collate = string.lower
@@ -172,7 +227,6 @@ class StardictEngine(diceng.BaseDictionaryEngine):
 		self._lastqmethod = self._lastqresult = None
 		# index -> (collated word, word, refword, offset, length)
 		self._cache = {}
-		self._cachesize = 50
 	def _get_idx(self, idx):
 		if self._cache.has_key(idx):
 			return self._cache[idx]
@@ -269,7 +323,7 @@ class StardictEngine(diceng.BaseDictionaryEngine):
 					lo = mid + 1
 				else:
 					hi = mid
-			if (lo < self._totalcnt and
+			if lo == self._totalcnt or (lo < self._totalcnt and
 					not self._get_idx(lo)[0].startswith(key)):
 				idxend = lo - 1
 		return idxbeg, idxend+1

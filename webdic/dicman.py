@@ -111,13 +111,24 @@ if __name__ == '__main__':
 	print 'yours:', pprint.pformat(query('yours', diceng.QRY_BEGIN))
 	print 'Query time:', time.clock() - t
 	t = time.clock()
+	print 'y:'
+	query('y', diceng.QRY_BEGIN)
+	print 'Query time:', time.clock() - t
+	t = time.clock()
 	print 'y:', query('y', diceng.QRY_BEGIN, diceng.CMD_QRYNUM)
 	print 'Query time:', time.clock() - t
 	t = time.clock()
 	print 'a:', query('a', diceng.QRY_BEGIN, diceng.CMD_QRYNUM)
 	print 'Query time:', time.clock() - t
 	t = time.clock()
+	print 'a:'
+	query('a', diceng.QRY_BEGIN)
+	print 'Query time:', time.clock() - t
+	t = time.clock()
 	print ':', query('', diceng.QRY_BEGIN, diceng.CMD_QRYNUM)
+	print 'Query time:', time.clock() - t
+	print 'a:'
+	query('a', diceng.QRY_BEGIN)
 	print 'Query time:', time.clock() - t
 	for s, p in dictlist():
 		deldict(s)
