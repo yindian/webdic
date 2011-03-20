@@ -153,7 +153,6 @@ class StardictEngine(diceng.BaseDictionaryEngine):
 				pass
 	def _load(self):
 		print 'loading', self._basename
-		t = time.clock()
 		self._name, self._sametypeseq, idxsize, self._wordcnt, self._syncnt, d\
 				= parseifo(self._path)
 		root, ext = os.path.splitext(self._path)
@@ -161,25 +160,20 @@ class StardictEngine(diceng.BaseDictionaryEngine):
 			self._dicf = dictzip.DictzipFile(root + '.dict.dz', 'rb')
 		except IOError:
 			self._dicf = open(root + '.dict', 'rb')
-		print '===', self.basename, 'load dict time', time.clock() - t
-		t = time.clock()
 		try:
 			self._idxf = open(root + '.idx', 'rb')
 		except IOError:
 			self._idxf = GzipFile(root + '.idx.gz', 'rb')
-		print '===', self.basename, 'load index time', time.clock() - t
-		t = time.clock()
 		if self._syncnt == 0:
 			if hascache(root, self._basename, '.pos', size=4*self._wordcnt):
 				f = open(getcachepath(self._basename, '.pos'), 'rb')
 				buf = f.read()
 				f.close()
 				self._indices = struct.unpack('<%dL' % (self._wordcnt,), buf)
+				self._colwords = None
 			else:
 				buf = self._idxf.read()
 				assert self._idxf.tell() == idxsize
-				print '===', self.basename, 'read buf time', time.clock() - t
-				t = time.clock()
 				pos = 0
 				ar = []
 				cr = [0]
@@ -189,17 +183,13 @@ class StardictEngine(diceng.BaseDictionaryEngine):
 					pos = p + 9
 					cr.append(pos)
 				assert pos == idxsize
-				print '===', self.basename, 'split index time', time.clock() - t
-				t = time.clock()
 				br = collate('\n'.join(ar).decode('utf-8')).splitlines()
 				assert len(ar) == len(br)
-				print '===', self.basename, 'collate index time', time.clock() - t
-				t = time.clock()
 				dr = range(len(ar))
 				dr.sort(key=br.__getitem__)
 				self._indices = map(cr.__getitem__, dr)
-				print '===', self.basename, 'build index time', time.clock() - t
-				t = time.clock()
+				br.sort()
+				self._colwords = br
 				f = open(getcachepath(self._basename, '.pos'), 'wb')
 				f.write(struct.pack('<%dL' % (self._wordcnt,), *self._indices))
 				f.close()
@@ -219,11 +209,10 @@ class StardictEngine(diceng.BaseDictionaryEngine):
 				self._refindices = struct.unpack('<%dL' % (totalcnt,),
 						f.read(4*totalcnt))
 				f.close()
+				self._colwords = None
 			else:
 				buf = self._idxf.read()
 				assert self._idxf.tell() == idxsize
-				print '===', self.basename, 'read buf time', time.clock() - t
-				t = time.clock()
 				pos = 0
 				ar = []
 				cr = [0]
@@ -234,39 +223,35 @@ class StardictEngine(diceng.BaseDictionaryEngine):
 					cr.append(pos)
 				assert pos == idxsize
 				del cr[-1]
-				print '===', self.basename, 'split index time', time.clock() - t
-				t = time.clock()
 				buf = self._synf.read()
 				cr2 = cr[:]
 				pos = 0
 				cr.append(0x80000000)
+				xx = []
 				while pos < len(buf):
 					p = buf.find('\0', pos)
 					ar.append(buf[pos:p])
 					pos = p + 5
 					cr.append(pos | 0x80000000)
-					x = struct.unpack('!L', buf[p+1:pos])[0]
-					cr2.append(cr[x])
+					xx.append(buf[p+1:pos])
+				cr2.extend(struct.unpack('!%dL' % (len(xx),), ''.join(xx)))
 				assert len(ar) == self._wordcnt + self._syncnt
 				assert len(ar) == len(cr) - 1 == len(cr2)
-				print '===', self.basename, 'read synbuf time', time.clock() - t
-				t = time.clock()
 				br = collate('\n'.join(ar).decode('utf-8')).splitlines()
 				assert len(ar) == len(br)
-				print '===', self.basename, 'collate index time', time.clock() - t
-				t = time.clock()
 				dr = range(len(ar))
 				dr.sort(key=br.__getitem__)
 				self._indices = map(cr.__getitem__, dr)
 				self._refindices = map(cr2.__getitem__, dr)
+				br.sort()
+				self._colwords = br
 				f = open(getcachepath(self._basename, '.spo'), 'wb')
 				f.write(struct.pack('<%dL'% (len(ar),),
 					*self._indices))
 				f.write(struct.pack('<%dL'% (len(ar),),
 					*self._refindices))
 				f.close()
-			assert len(self._indices) == totalcnt
-		print '===', self.basename, 'load cache time', time.clock() - t
+			assert len(self._indices) == len(self._refindices) == totalcnt
 		self._totalcnt = len(self._indices)
 		self._lastqstr = self._lastqtype = self._lastqparam = None
 		self._lastqmethod = self._lastqresult = None
