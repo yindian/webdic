@@ -44,7 +44,8 @@ document.f.path.value = clone.value;
 </script>
 <br>
 </form>
-<a href="/">Back</a>
+<a href="/save">Save</a>
+<a href="/reset">Reset</a>
 </center>
 </body>
 </html>

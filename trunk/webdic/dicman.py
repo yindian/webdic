@@ -54,12 +54,14 @@ def _adddict(path):
 	return []
 
 def adddict(paths):
+	result = []
 	if type(paths) in types.StringTypes:
-		_adddict(paths)
+		result.append((paths, _adddict(paths)))
 	else:
 		for path in paths:
-			_adddict(path)
+			result.append((path, _adddict(path)))
 	diceng.diceng._taskqueue.join()
+	return result
 
 def deldict(basename):
 	d = dict(wdcfg.dictlist())
@@ -106,6 +108,7 @@ if __name__ == '__main__':
 	t = time.clock()
 	ar = adddict(r'Y:\temp\temp\newoxford\mob\out\En-Ch-newoxford.ifo')
 	ar = adddict(r'Y:\temp\temp\newoxford\out\newoxford.ifo')
+	ar = adddict(r'Y:\temp\temp\qqdict\Data\out\ecceqq.ifo')
 	diceng.diceng._taskqueue.join()
 	print 'Loading time:', time.clock() - t
 	print ar

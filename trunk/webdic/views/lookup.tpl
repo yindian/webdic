@@ -9,15 +9,19 @@ font-size: large
 </style>
 </head>
 <body>
-%for engine, cmd, ar in result:
-%if ar:
-<div class="dictname">{{engine.name}}</div>
+%for basename, dictname, entries in result:
+<div class="dictname">{{dictname}}</div>
 <ul>
-%for wordid, word in ar:
-<li><a href="/detail?dict={{engine.basename}}&id={{wordid}}">{{word.replace('\0', ' => ')}}</a></li>
+%for wordid, word, content in entries:
+<li><a href="/detail?dict={{basename}}&id={{wordid}}">{{word.replace('\0', ' => ')}}</a>
+%if content is not None:
+<div class="detail">
+{{content}}
+</div>
+%end
+</li>
 %end
 </ul>
-%end
 %end
 <hr>
 <form action="/lookup">

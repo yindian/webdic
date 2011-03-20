@@ -87,12 +87,13 @@ class BaseDictionaryEngine(object):
 			raise
 		finally:
 			self.unlock()
-	def _detail(self, word=None, wordid=None): pass
-	def detail(self, word=None, wordid=None):
-		'Return detailed explanation of given word in a query result list.'
+	def _detail(self, wordid=None, word=None): pass
+	def detail(self, wordid=None, word=None):
+		'Return detailed explanation of given word in a query result list. The '
+		'return value is a list of (word, detail) pairs.'
 		self.lock()
 		try:
-			return self._detail(word=word, wordid=wordid)
+			return self._detail(wordid=wordid, word=word)
 		except:
 			raise
 		finally:

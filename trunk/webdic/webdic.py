@@ -49,6 +49,7 @@ def template2(tpl, **kwargs):
 _ = lambda s: s
 
 wdcfg.load()
+dicman.diceng.setcachedir(wdcfg.CACHEDIR)
 
 @route1('/redir')
 def redir():
@@ -63,6 +64,11 @@ def redirect2(url, msg=None):
 		redirect('/redir?url=%s' % (urllib.quote(url),))
 	else:
 		redirect('/redir?url=%s&msg=%s' % map(urllib.quote, (url, msg)))
+
+@route1('/save')
+def save():
+	wdcfg.store()
+	redirect('/')
 
 @route1('/reset')
 def reset():
@@ -80,7 +86,20 @@ def lookup():
 	if not query:
 		abort(400, _('Empty query string.'))
 	result = dicman.query(query)
-	return template2('lookup.tpl', query=query, result=result)
+	toshow = []
+	for engine, cmd, ar in result:
+		if ar:
+			entries = []
+			first = 3
+			for wordid, word in ar:
+				if first:
+					first -= 1
+					content = engine.detail(wordid)[0][1]
+				else:
+					content = None
+				entries.append((wordid, word, content))
+			toshow.append((engine.basename, engine.name, entries))
+	return template2('lookup.tpl', query=query, result=toshow)
 
 @route1('/manage')
 def manage():

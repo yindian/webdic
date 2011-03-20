@@ -35,6 +35,7 @@ except:
 	import StringIO
 import logging, traceback
 import pdb
+import time
 
 def parseifo(path):
 	f = open(path, 'r')
@@ -152,6 +153,7 @@ class StardictEngine(diceng.BaseDictionaryEngine):
 				pass
 	def _load(self):
 		print 'loading', self._basename
+		t = time.clock()
 		self._name, self._sametypeseq, idxsize, self._wordcnt, self._syncnt, d\
 				= parseifo(self._path)
 		root, ext = os.path.splitext(self._path)
@@ -159,10 +161,14 @@ class StardictEngine(diceng.BaseDictionaryEngine):
 			self._dicf = dictzip.DictzipFile(root + '.dict.dz', 'rb')
 		except IOError:
 			self._dicf = open(root + '.dict', 'rb')
+		print '===', self.basename, 'load dict time', time.clock() - t
+		t = time.clock()
 		try:
 			self._idxf = open(root + '.idx', 'rb')
 		except IOError:
 			self._idxf = GzipFile(root + '.idx.gz', 'rb')
+		print '===', self.basename, 'load index time', time.clock() - t
+		t = time.clock()
 		if self._syncnt == 0:
 			if hascache(root, self._basename, '.pos', size=4*self._wordcnt):
 				f = open(getcachepath(self._basename, '.pos'), 'rb')
@@ -172,14 +178,28 @@ class StardictEngine(diceng.BaseDictionaryEngine):
 			else:
 				buf = self._idxf.read()
 				assert self._idxf.tell() == idxsize
-				indices = [] #(collated word, entry offset)
+				print '===', self.basename, 'read buf time', time.clock() - t
+				t = time.clock()
 				pos = 0
-				for s in idxentrypat.findall(buf):
-					indices.append((collate(s.decode('utf-8')), pos, pos))
-					pos += len(s) + 9
+				ar = []
+				cr = [0]
+				while pos < len(buf):
+					p = buf.find('\0', pos)
+					ar.append(buf[pos:p])
+					pos = p + 9
+					cr.append(pos)
 				assert pos == idxsize
-				indices.sort()
-				self._indices = [p for s, p, pp in indices]
+				print '===', self.basename, 'split index time', time.clock() - t
+				t = time.clock()
+				br = collate('\n'.join(ar).decode('utf-8')).splitlines()
+				assert len(ar) == len(br)
+				print '===', self.basename, 'collate index time', time.clock() - t
+				t = time.clock()
+				dr = range(len(ar))
+				dr.sort(key=br.__getitem__)
+				self._indices = map(cr.__getitem__, dr)
+				print '===', self.basename, 'build index time', time.clock() - t
+				t = time.clock()
 				f = open(getcachepath(self._basename, '.pos'), 'wb')
 				f.write(struct.pack('<%dL' % (self._wordcnt,), *self._indices))
 				f.close()
@@ -194,43 +214,64 @@ class StardictEngine(diceng.BaseDictionaryEngine):
 			totalcnt = self._wordcnt + self._syncnt
 			if hascache(root, self._basename, '.spo', size=8*totalcnt):
 				f = open(getcachepath(self._basename, '.spo'), 'rb')
-				self._indices = zip(struct.unpack('<%dL' % (totalcnt,),
-					f.read(4*totalcnt)), struct.unpack('<%dL' % (totalcnt,),
-						f.read()))
+				self._indices = struct.unpack('<%dL' % (totalcnt,),
+						f.read(4*totalcnt))
+				self._refindices = struct.unpack('<%dL' % (totalcnt,),
+						f.read(4*totalcnt))
 				f.close()
 			else:
 				buf = self._idxf.read()
 				assert self._idxf.tell() == idxsize
-				indices = [] #(collated word, entry offset)
+				print '===', self.basename, 'read buf time', time.clock() - t
+				t = time.clock()
 				pos = 0
-				for s in idxentrypat.findall(buf):
-					indices.append((collate(s.decode('utf-8')), pos, pos))
-					pos += len(s) + 9
+				ar = []
+				cr = [0]
+				while pos < len(buf):
+					p = buf.find('\0', pos)
+					ar.append(buf[pos:p])
+					pos = p + 9
+					cr.append(pos)
 				assert pos == idxsize
+				del cr[-1]
+				print '===', self.basename, 'split index time', time.clock() - t
+				t = time.clock()
 				buf = self._synf.read()
+				cr2 = cr[:]
 				pos = 0
-				for s, t in synentrypat.findall(buf):
-					x = struct.unpack('!L', t)[0]
-					indices.append((collate(s.decode('utf-8')), pos| 0x80000000,
-						indices[x][1]))
-					pos += len(s) + 5
-				assert len(indices) ==  self._wordcnt + self._syncnt
-				assert pos == self._synf.tell()
-				indices.sort()
-				ar = [p for s, p, pp in indices]
-				br = [pp for s, p, pp in indices]
-				self._indices = zip(ar, br)
+				cr.append(0x80000000)
+				while pos < len(buf):
+					p = buf.find('\0', pos)
+					ar.append(buf[pos:p])
+					pos = p + 5
+					cr.append(pos | 0x80000000)
+					x = struct.unpack('!L', buf[p+1:pos])[0]
+					cr2.append(cr[x])
+				assert len(ar) == self._wordcnt + self._syncnt
+				assert len(ar) == len(cr) - 1 == len(cr2)
+				print '===', self.basename, 'read synbuf time', time.clock() - t
+				t = time.clock()
+				br = collate('\n'.join(ar).decode('utf-8')).splitlines()
+				assert len(ar) == len(br)
+				print '===', self.basename, 'collate index time', time.clock() - t
+				t = time.clock()
+				dr = range(len(ar))
+				dr.sort(key=br.__getitem__)
+				self._indices = map(cr.__getitem__, dr)
+				self._refindices = map(cr2.__getitem__, dr)
 				f = open(getcachepath(self._basename, '.spo'), 'wb')
-				f.write(struct.pack('<%dL'% (len(indices),),
-					*ar))
-				f.write(struct.pack('<%dL'% (len(indices),),
-					*br))
+				f.write(struct.pack('<%dL'% (len(ar),),
+					*self._indices))
+				f.write(struct.pack('<%dL'% (len(ar),),
+					*self._refindices))
 				f.close()
 			assert len(self._indices) == totalcnt
+		print '===', self.basename, 'load cache time', time.clock() - t
 		self._totalcnt = len(self._indices)
 		self._lastqstr = self._lastqtype = self._lastqparam = None
 		self._lastqmethod = self._lastqresult = None
-		self._lastidxstr = self._lastidxtype = self._lastidxrange = None
+		self._lastidxstr = self._lastidxtype = self._lastidxparam = None
+		self._lastidxrange = None
 		self._lastlocatestr = self._lastlocatepos = None
 		# index -> (collated word, word, refword, offset, length)
 		self._cache = {}
@@ -251,14 +292,14 @@ class StardictEngine(diceng.BaseDictionaryEngine):
 			offset, length = struct.unpack('!LL', buf[p+1:p+9])
 			result = [collate(word), word, None, offset, length]
 		else:
-			if self._indices[idx][0] & 0x80000000:
-				pos = self._indices[idx][0] & 0x7FFFFFFF
+			if self._indices[idx] & 0x80000000:
+				pos = self._indices[idx] & 0x7FFFFFFF
 				self._synf.seek(pos)
 				buf = self._synf.read(64)
 				while buf.find('\0') < 0:
 					buf += self._synf.read(64)
 				word = buf[:buf.index('\0')]
-				pos = self._indices[idx][1]
+				pos = self._refindices[idx]
 				self._idxf.seek(pos)
 				buf = self._idxf.read(64)
 				while buf.find('\0') < 0:
@@ -270,7 +311,7 @@ class StardictEngine(diceng.BaseDictionaryEngine):
 				offset, length = struct.unpack('!LL', buf[p+1:p+9])
 				result = [collate(word), word, refword, offset, length]
 			else:
-				pos = self._indices[idx][1]
+				pos = self._indices[idx]
 				self._idxf.seek(pos)
 				buf = self._idxf.read(64)
 				while buf.find('\0') < 0:
@@ -308,8 +349,9 @@ class StardictEngine(diceng.BaseDictionaryEngine):
 			lo += 1
 		self._lastlocatepos = lo
 		return lo
-	def _get_idx_range(self, qstr, qtype):
-		if self._lastidxstr == qstr and self._lastidxtype == qtype:
+	def _get_idx_range(self, qstr, qtype, qparam=None):
+		if (self._lastidxstr == qstr and self._lastidxtype == qtype and
+				self._lastidxparam == qparam):
 			return self._lastidxrange
 		idxbeg = idxend = self._locate(qstr)
 		key = collate(qstr)
@@ -338,8 +380,22 @@ class StardictEngine(diceng.BaseDictionaryEngine):
 			if lo == self._totalcnt or (lo < self._totalcnt and
 					not self._get_idx(lo)[0].startswith(key)):
 				idxend = lo - 1
+			if qparam is not None:
+				if type(qparam) == types.IntType:
+					notexactnum = qparam
+				elif type(qparam) == types.DictType and qparam.get('num', 0):
+					notexactnum = qparam['num']
+				else:
+					notexactnum = 0
+				if notexactnum:
+					idx = idxbeg
+					while (idx <= idxend and
+							self._get_idx(idx)[0] == key):
+						idx += 1
+					idxend = min(idxend, idx + notexactnum - 1)
 		self._lastidxstr = qstr
 		self._lastidxtype = qtype
+		self._lastidxparam = qparam
 		self._lastidxrange = idxbeg, idxend+1
 		return self._lastidxrange
 	def _query(self, qstr, qtype=None, qparam=None):
@@ -350,12 +406,7 @@ class StardictEngine(diceng.BaseDictionaryEngine):
 			return self._lastqresult
 		result = []
 		if qtype == diceng.QRY_EXACT or qtype == diceng.QRY_BEGIN:
-			idxbeg, idxend = self._get_idx_range(qstr, qtype)
-			if qparam is not None:
-				if type(qparam) == types.IntType:
-					idxend = min(idxend, idxbeg + qparam)
-				elif type(qparam) == types.DictType and qparam.get('maxnum', 0):
-					idxend = min(idxend, idxbeg + qparam['maxnum'])
+			idxbeg, idxend = self._get_idx_range(qstr, qtype, qparam)
 			for idx in xrange(idxbeg, idxend):
 				ar = self._get_idx(idx)
 				if ar[2] is None:
@@ -376,7 +427,7 @@ class StardictEngine(diceng.BaseDictionaryEngine):
 			return self._lastqresult
 		result = None
 		if qtype == diceng.QRY_EXACT or qtype == diceng.QRY_BEGIN:
-			idxbeg, idxend = self._get_idx_range(qstr, qtype)
+			idxbeg, idxend = self._get_idx_range(qstr, qtype, qparam)
 			result = idxend - idxbeg
 		self._lastqmethod = 1
 		self._lastqstr = qstr
@@ -386,9 +437,9 @@ class StardictEngine(diceng.BaseDictionaryEngine):
 		return result
 	def _html_render(self, buf):
 		return buf
-	def _detail(self, word=None, wordid=None):
+	def _detail(self, wordid=None, word=None):
 		if wordid is not None:
-			ar = self._get_idx(self, wordid)
+			ar = self._get_idx(wordid)
 			# (collated word, word, refword, offset, length)
 			self._dicf.seek(ar[3])
 			buf = self._dicf.read(ar[4])
