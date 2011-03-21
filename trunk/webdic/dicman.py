@@ -119,35 +119,42 @@ if __name__ == '__main__':
 	t = time.clock()
 	print 'Hello:', pprint.pformat(query('Hello', diceng.QRY_BEGIN))
 	print 'Query time:', time.clock() - t
+	#t = time.clock()
+	#print 'yours:', pprint.pformat(query('yours', diceng.QRY_BEGIN))
+	#print 'Query time:', time.clock() - t
+	#t = time.clock()
+	#print 'y:'
+	#query('y', diceng.QRY_BEGIN)
+	#print 'Query time:', time.clock() - t
+	#t = time.clock()
+	#print 'y:', query('y', diceng.QRY_BEGIN, diceng.CMD_QRYNUM)
+	#print 'Query time:', time.clock() - t
+	#t = time.clock()
+	#print 'a:', query('a', diceng.QRY_BEGIN, diceng.CMD_QRYNUM)
+	#print 'Query time:', time.clock() - t
+	#t = time.clock()
+	#print 'a:'
+	#query('a', diceng.QRY_BEGIN)
+	#print 'Query time:', time.clock() - t
+	#t = time.clock()
+	#print ':', query('', diceng.QRY_BEGIN, diceng.CMD_QRYNUM)
+	#print 'Query time:', time.clock() - t
+	#print 'a:'
+	#query('a', diceng.QRY_BEGIN)
+	#print 'Query time:', time.clock() - t
+	#t = time.clock()
+	#print 'a:', pprint.pformat(query('a', diceng.QRY_BEGIN, qparam=10))
+	#print 'Query time:', time.clock() - t
+	#t = time.clock()
+	#print 'cop:'
+	#query('cop', cmd=diceng.CMD_DETAIL)
+	#print 'Query time:', time.clock() - t
 	t = time.clock()
-	print 'yours:', pprint.pformat(query('yours', diceng.QRY_BEGIN))
+	print 'he*o:', query('he*o', diceng.QRY_WILD)
 	print 'Query time:', time.clock() - t
 	t = time.clock()
-	print 'y:'
-	query('y', diceng.QRY_BEGIN)
-	print 'Query time:', time.clock() - t
-	t = time.clock()
-	print 'y:', query('y', diceng.QRY_BEGIN, diceng.CMD_QRYNUM)
-	print 'Query time:', time.clock() - t
-	t = time.clock()
-	print 'a:', query('a', diceng.QRY_BEGIN, diceng.CMD_QRYNUM)
-	print 'Query time:', time.clock() - t
-	t = time.clock()
-	print 'a:'
-	query('a', diceng.QRY_BEGIN)
-	print 'Query time:', time.clock() - t
-	t = time.clock()
-	print ':', query('', diceng.QRY_BEGIN, diceng.CMD_QRYNUM)
-	print 'Query time:', time.clock() - t
-	print 'a:'
-	query('a', diceng.QRY_BEGIN)
-	print 'Query time:', time.clock() - t
-	t = time.clock()
-	print 'a:', pprint.pformat(query('a', diceng.QRY_BEGIN, qparam=10))
-	print 'Query time:', time.clock() - t
-	t = time.clock()
-	print 'cop:'
-	query('cop', cmd=diceng.CMD_DETAIL)
+	print 'h*o:'
+	query('h*o', diceng.QRY_WILD)
 	print 'Query time:', time.clock() - t
 	for s, p in dictlist():
 		deldict(s)

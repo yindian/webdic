@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env pytho
 # -*- coding: utf-8 -*-
 '''
 Homepage: http://code.google.com/p/webdic/
@@ -136,8 +136,10 @@ class CachedFile(file):
 				self.seek(w)
 				return file.read(self, size)
 
-idxentrypat = re.compile(r'(.*?)\x00.{8}', re.S)
-synentrypat = re.compile(r'(.*?)\x00(.{4})', re.S)
+# Restriction of collate function:
+# 1. collate('\n'.join(array)).splitlines() == map(collate, array)
+# 2. collate(collate(str)) == collate(str)
+# 3. Question mark and asterisk shall not be stripped
 collate = string.lower
 
 class StardictEngine(diceng.BaseDictionaryEngine):
@@ -332,6 +334,7 @@ class StardictEngine(diceng.BaseDictionaryEngine):
 			lo -= 1
 		while lo < top-1 and self._get_idx(lo)[0] < key:
 			lo += 1
+		self._lastlocatestr = word
 		self._lastlocatepos = lo
 		return lo
 	def _get_idx_range(self, qstr, qtype, qparam=None):
@@ -345,6 +348,15 @@ class StardictEngine(diceng.BaseDictionaryEngine):
 					self._get_idx(idxend)[0] == key):
 				idxend += 1
 			idxend -= 1
+			if qparam is not None:
+				if type(qparam) == types.IntType:
+					extranum = qparam
+				elif type(qparam) == types.DictType and qparam.get('num', 0):
+					extranum = qparam['num']
+				else:
+					extranum = 0
+				if extranum:
+					idxend = min(idxend + extranum, self._totalcnt-1)
 		else:
 			lo = idxend + 1
 			hi = min(lo + 4, self._totalcnt)
@@ -383,6 +395,44 @@ class StardictEngine(diceng.BaseDictionaryEngine):
 		self._lastidxparam = qparam
 		self._lastidxrange = idxbeg, idxend+1
 		return self._lastidxrange
+	def _wild_search(self, qstr, qparam=None):
+		result = []
+		if self._colwords is None:
+			self._idxf.seek(0)
+			buf = self._idxf.read()
+			pos = 0
+			ar = []
+			while pos < len(buf):
+				p = buf.find('\0', pos)
+				ar.append(buf[pos:p])
+				pos = p + 9
+			if self._syncnt:
+				self._synf.seek(0)
+				buf = self._synf.read()
+				pos = 0
+				while pos < len(buf):
+					p = buf.find('\0', pos)
+					ar.append(buf[pos:p])
+					pos = p + 5
+			br = collate('\n'.join(ar).decode('utf-8')).splitlines()
+			br.sort()
+			self._colwords = br
+		assert len(self._colwords) == self._totalcnt
+		key = collate(qstr)
+		p = key.find('*')
+		if p < 0 or 0 <= key.find('?') < p:
+			p = key.find('?')
+		if p < 0:
+			p = len(key)
+		prefix = key[:p]
+		key = re.escape(key).replace(r'\*', '.*?').replace(r'\?', '.')
+		pat = re.compile(key+'$')
+		for i in xrange(self._locate(prefix), self._totalcnt):
+			if not self._colwords[i].startswith(prefix):
+				break
+			if pat.match(self._colwords[i]):
+				result.append(i)
+		return result
 	def _query(self, qstr, qtype=None, qparam=None):
 		if qtype is None:
 			qtype = diceng.QRY_EXACT
@@ -393,6 +443,13 @@ class StardictEngine(diceng.BaseDictionaryEngine):
 		if qtype == diceng.QRY_EXACT or qtype == diceng.QRY_BEGIN:
 			idxbeg, idxend = self._get_idx_range(qstr, qtype, qparam)
 			for idx in xrange(idxbeg, idxend):
+				ar = self._get_idx(idx)
+				if ar[2] is None:
+					result.append((idx, ar[1]))
+				else:
+					result.append((idx, '%s\0%s' % (ar[1], ar[2])))
+		elif qtype == diceng.QRY_WILD:
+			for idx in self._wild_search(qstr, qparam):
 				ar = self._get_idx(idx)
 				if ar[2] is None:
 					result.append((idx, ar[1]))
