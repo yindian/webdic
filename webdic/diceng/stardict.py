@@ -255,6 +255,11 @@ class StardictEngine(diceng.BaseDictionaryEngine):
 				f.close()
 			assert len(self._indices) == len(self._refindices) == totalcnt
 		self._totalcnt = len(self._indices)
+		self._info = '\n'.join([self._name,
+			'%d words' % (self._wordcnt,) + (self._syncnt and 
+				', %d synonyms (%d total)' % (self._syncnt, self._totalcnt)
+				or ''),
+			d.get('description', '')])
 		self._lastqstr = self._lastqtype = self._lastqparam = None
 		self._lastqmethod = self._lastqresult = None
 		self._lastidxstr = self._lastidxtype = self._lastidxparam = None
@@ -262,10 +267,33 @@ class StardictEngine(diceng.BaseDictionaryEngine):
 		self._lastlocatestr = self._lastlocatepos = None
 		# index -> (collated word, word, refword, offset, length)
 		self._cache = {}
+	def _lazyload(self):
+		if self._colwords is None:
+			self._load_collated_word()
+		print 'lazy load done for', self._basename
+	def _load_collated_word(self):
+		self._idxf.seek(0)
+		buf = self._idxf.read()
+		pos = 0
+		ar = []
+		while pos < len(buf):
+			p = buf.find('\0', pos)
+			ar.append(buf[pos:p])
+			pos = p + 9
+		if self._syncnt:
+			self._synf.seek(0)
+			buf = self._synf.read()
+			pos = 0
+			while pos < len(buf):
+				p = buf.find('\0', pos)
+				ar.append(buf[pos:p])
+				pos = p + 5
+		br = collate('\n'.join(ar).decode('utf-8')).splitlines()
+		br.sort()
+		self._colwords = br
 	def _get_idx(self, idx):
 		if self._cache.has_key(idx):
 			return self._cache[idx]
-		result = None
 		if self._syncnt == 0:
 			pos = self._indices[idx]
 			self._idxf.seek(pos)
@@ -319,8 +347,7 @@ class StardictEngine(diceng.BaseDictionaryEngine):
 		hi = top = self._totalcnt
 		while lo < hi:
 			mid = (lo + hi) / 2
-			ar = self._get_idx(mid)
-			c = cmp(key, ar[0])
+			c = cmp(key, self._get_idx(mid)[0])
 			if c < 0: # lo word mid hi
 				hi = mid
 			elif c > 0: # lo mid word hi
@@ -365,7 +392,7 @@ class StardictEngine(diceng.BaseDictionaryEngine):
 					self._get_idx(hi)[0].startswith(key)):
 				lo = hi
 				hi += step
-				step *= 2
+				step += step
 			if hi > self._totalcnt:
 				hi = self._totalcnt
 			while lo < hi:
@@ -398,25 +425,7 @@ class StardictEngine(diceng.BaseDictionaryEngine):
 	def _wild_search(self, qstr, qparam=None):
 		result = []
 		if self._colwords is None:
-			self._idxf.seek(0)
-			buf = self._idxf.read()
-			pos = 0
-			ar = []
-			while pos < len(buf):
-				p = buf.find('\0', pos)
-				ar.append(buf[pos:p])
-				pos = p + 9
-			if self._syncnt:
-				self._synf.seek(0)
-				buf = self._synf.read()
-				pos = 0
-				while pos < len(buf):
-					p = buf.find('\0', pos)
-					ar.append(buf[pos:p])
-					pos = p + 5
-			br = collate('\n'.join(ar).decode('utf-8')).splitlines()
-			br.sort()
-			self._colwords = br
+			self._load_collated_word()
 		assert len(self._colwords) == self._totalcnt
 		key = collate(qstr)
 		p = key.find('*')
@@ -427,15 +436,33 @@ class StardictEngine(diceng.BaseDictionaryEngine):
 		prefix = key[:p]
 		key = re.escape(key).replace(r'\*', '.*?').replace(r'\?', '.')
 		pat = re.compile(key+'$')
-		for i in xrange(self._locate(prefix), self._totalcnt):
-			if not self._colwords[i].startswith(prefix):
-				break
-			if pat.match(self._colwords[i]):
-				result.append(i)
+		if prefix:
+			for i in xrange(self._locate(prefix), self._totalcnt):
+				if not self._colwords[i].startswith(prefix):
+					break
+				if pat.match(self._colwords[i]):
+					result.append(i)
+		else:
+			for i in xrange(self._totalcnt):
+				if pat.match(self._colwords[i]):
+					result.append(i)
 		return result
-	def _query(self, qstr, qtype=None, qparam=None):
+	def _adjust_qtype(self, qstr, qtype, qparam):
 		if qtype is None:
 			qtype = diceng.QRY_EXACT
+		elif qtype == diceng.QRY_AUTO:
+			if qstr.count('*') + qstr.count('?') > 0:
+				qtype = diceng.QRY_WILD
+			else:
+				qtype = diceng.QRY_EXACT
+		if qtype == diceng.QRY_WILD:
+			if (qstr.count('?') == 0 and qstr.count('*') == 1 and 
+					qstr[-1] == '*'):
+				qstr = qstr[:-1]
+				qtype = diceng.QRY_BEGIN
+		return qstr, qtype, qparam
+	def _query(self, qstr, qtype=None, qparam=None):
+		qstr, qtype, qparam = self._adjust_qtype(qstr, qtype, qparam)
 		if (self._lastqmethod == 0 and self._lastqstr == qstr and 
 				self._lastqtype == qtype and self._lastqparam == qparam):
 			return self._lastqresult
@@ -462,8 +489,7 @@ class StardictEngine(diceng.BaseDictionaryEngine):
 		self._lastqresult = result
 		return result[:]
 	def _querynum(self, qstr, qtype=None, qparam=None):
-		if qtype is None:
-			qtype = diceng.QRY_EXACT
+		qstr, qtype, qparam = self._adjust_qtype(qstr, qtype, qparam)
 		if (self._lastqmethod == 1 and self._lastqstr == qstr and 
 				self._lastqtype == qtype and self._lastqparam == qparam):
 			return self._lastqresult
@@ -471,6 +497,8 @@ class StardictEngine(diceng.BaseDictionaryEngine):
 		if qtype == diceng.QRY_EXACT or qtype == diceng.QRY_BEGIN:
 			idxbeg, idxend = self._get_idx_range(qstr, qtype, qparam)
 			result = idxend - idxbeg
+		elif qtype == diceng.QRY_WILD:
+			result = len(self._wild_search(qstr, qparam))
 		self._lastqmethod = 1
 		self._lastqstr = qstr
 		self._lastqtype = qtype
