@@ -149,12 +149,17 @@ if __name__ == '__main__':
 	#print 'cop:'
 	#query('cop', cmd=diceng.CMD_DETAIL)
 	#print 'Query time:', time.clock() - t
+	time.sleep(6)
 	t = time.clock()
 	print 'he*o:', query('he*o', diceng.QRY_WILD)
 	print 'Query time:', time.clock() - t
 	t = time.clock()
 	print 'h*o:'
 	query('h*o', diceng.QRY_WILD)
+	print 'Query time:', time.clock() - t
+	t = time.clock()
+	print '*o:'
+	query('*o', diceng.QRY_WILD)
 	print 'Query time:', time.clock() - t
 	for s, p in dictlist():
 		deldict(s)

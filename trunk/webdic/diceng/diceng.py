@@ -60,10 +60,15 @@ class BaseDictionaryEngine(object):
 			self._load()
 			self.loadtime = time.clock() - t
 			self._loaded = True
+			switchcontext_lazy(self.lazyload)
 		except:
 			raise
 		finally:
 			self.unlock()
+	def _lazyload(self): pass
+	def lazyload(self):
+		'Load extra data lazily from disk. Caution: self not locked.'
+		self._lazyload()
 	def _query(self, qstr, qtype=None, qparam=None): pass
 	def query(self, qstr, qtype=None, qparam=None):
 		'Query given pattern and return a list of matching words synchronously.'
@@ -116,6 +121,12 @@ class BaseDictionaryEngine(object):
 			return self._name
 		except:
 			return 'Put the name / title of your dictionary in self._name'
+	@property
+	def info(self):
+		try:
+			return self._info
+		except:
+			return 'Put the detailed information / description of your dictionary in self._info'
 
 QRY_AUTO  = 0	#Auto match
 QRY_EXACT = 1	#Exact match
@@ -163,6 +174,15 @@ def switchcontext(fct, *args, **kwargs):
 
 def switchcontext_ex(cb, fct, *args, **kwargs):
 	_taskqueue.put((cb, fct, args, kwargs))
+
+_lazytaskqueue = Queue.Queue()
+_t = _AgentThread(_lazytaskqueue)
+_t.setDaemon(True)
+_t.start()
+
+def switchcontext_lazy(fct, *args, **kwargs):
+	_lazytaskqueue.put((None, fct, args, kwargs))
+
 
 _queryq = Queue.Queue()
 _resultq = Queue.Queue()
