@@ -31,6 +31,7 @@ import wdcfg
 import dicman
 import bottle
 import os.path, urllib
+import time
 
 def template2(tpl, **kwargs):
 	'Wrapped template with translation'
@@ -50,6 +51,7 @@ _ = lambda s: s
 
 wdcfg.load()
 dicman.diceng.setcachedir(wdcfg.CACHEDIR)
+dicman.loaddicts()
 
 @route1('/redir')
 def redir():
@@ -85,21 +87,16 @@ def lookup():
 	query = request.GET.get('q')
 	if not query:
 		abort(400, _('Empty query string.'))
-	result = dicman.query(query)
-	toshow = []
-	for engine, cmd, ar in result:
-		if ar:
-			entries = []
-			first = 3
-			for wordid, word in ar:
-				if first:
-					first -= 1
-					content = engine.detail(wordid)[0][1]
-				else:
-					content = None
-				entries.append((wordid, word, content))
-			toshow.append((engine.basename, engine.name, entries))
-	return template2('lookup.tpl', query=query, result=toshow)
+	d = {}
+	def detailfilter(basename, qstr, qtype, word, d=d):
+		if d.get(basename, 0) < 3:
+			d[basename] = d.get(basename, 0) + 1
+			return True
+		return False
+	t = time.clock()
+	result = dicman.query(query, detailfilter=detailfilter)
+	t = time.clock() - t
+	return template2('lookup.tpl', query=query, result=result, querytime=t)
 
 @route1('/manage')
 def manage():

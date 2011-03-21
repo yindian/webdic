@@ -53,6 +53,10 @@ def _adddict(path):
 			return result
 	return []
 
+def loaddicts():
+	for name, path in wdcfg.dictlist():
+		_adddict(path)
+
 def adddict(paths):
 	result = []
 	if type(paths) in types.StringTypes:
@@ -89,12 +93,36 @@ def dictnamelist():
 			result.append((name, dictpool[name].name))
 	return result
 
-def query(qstr, qtype=None, cmd=diceng.CMD_QUERY, qparam=None, dictfilter=None, detailfilter=None):
+def query(qstr, qtype=diceng.QRY_AUTO, cmd=diceng.CMD_QUERY, qparam=None, dictfilter=None, detailfilter=None):
 	dictlist = filter(dictpool.has_key, [n for n, p in wdcfg.dictlist()])
 	dictlist = filter(dictfilter, dictlist)
 	enginelist = map(dictpool.get, dictlist)
 	diceng.asyncquery(enginelist, cmd=cmd, qstr=qstr, qtype=qtype, qparam=qparam)
-	return diceng.fetchresults()
+	result = diceng.fetchresults()
+	toshow = []
+	for engine, cmd, ar in result:
+		if ar:
+			entries = []
+			for wordid, word in ar:
+				if detailfilter and detailfilter(engine.basename, qstr, qtype,
+						word):
+					content = engine.detail(wordid)[0][1]
+				else:
+					content = None
+				entries.append((wordid, word, content))
+			more = []
+			toshow.append((engine.basename, engine.name, entries, more))
+	if cmd == diceng.CMD_QUERY and qtype == diceng.QRY_AUTO:
+		# more result hint
+		diceng.asyncquery(enginelist, cmd=diceng.CMD_QRYNUM, qstr=qstr,
+				qtype=diceng.QRY_BEGIN)
+		result = diceng.fetchresults()
+		i = 0
+		for engine, cmd, num in result:
+			if toshow[i][0] == engine.basename:
+				toshow[i][-1].append((diceng.QRY_BEGIN, num))
+				i += 1
+	return toshow
 
 if __name__ == '__main__':
 	# test
