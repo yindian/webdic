@@ -94,6 +94,9 @@ def dictnamelist():
 	return result
 
 def query(qstr, qtype=diceng.QRY_AUTO, cmd=diceng.CMD_QUERY, qparam=None, dictfilter=None, detailfilter=None):
+	'Return a list of query results, each item containing dictionary basename, '
+	'dictionary name, and entry list of word ID, word string and content ('
+	'None if detailfilter(basename, qstr, qtype, word string) returns False).'
 	dictlist = filter(dictpool.has_key, [n for n, p in wdcfg.dictlist()])
 	dictlist = filter(dictfilter, dictlist)
 	enginelist = map(dictpool.get, dictlist)
@@ -110,19 +113,15 @@ def query(qstr, qtype=diceng.QRY_AUTO, cmd=diceng.CMD_QUERY, qparam=None, dictfi
 				else:
 					content = None
 				entries.append((wordid, word, content))
-			more = []
-			toshow.append((engine.basename, engine.name, entries, more))
-	if cmd == diceng.CMD_QUERY and qtype == diceng.QRY_AUTO:
-		# more result hint
-		diceng.asyncquery(enginelist, cmd=diceng.CMD_QRYNUM, qstr=qstr,
-				qtype=diceng.QRY_BEGIN)
-		result = diceng.fetchresults()
-		i = 0
-		for engine, cmd, num in result:
-			if toshow[i][0] == engine.basename:
-				toshow[i][-1].append((diceng.QRY_BEGIN, num))
-				i += 1
+			toshow.append((engine.basename, engine.name, entries))
 	return toshow
+
+def suggest(qstr, qtype=diceng.QRY_AUTO, qparam=None, dictfilter=None):
+	'Return a list of search suggestion pattern strings'
+	result = []
+	if qstr and qstr[-1] != '*':
+		result.append(qstr + '*')
+	return result
 
 if __name__ == '__main__':
 	# test
