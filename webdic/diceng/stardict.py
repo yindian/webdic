@@ -474,14 +474,14 @@ class StardictEngine(diceng.BaseDictionaryEngine):
 				if ar[2] is None:
 					result.append((idx, ar[1]))
 				else:
-					result.append((idx, '%s\0%s' % (ar[1], ar[2])))
+					result.append((idx, '%s => %s' % (ar[1], ar[2])))
 		elif qtype == diceng.QRY_WILD:
 			for idx in self._wild_search(qstr, qparam):
 				ar = self._get_idx(idx)
 				if ar[2] is None:
 					result.append((idx, ar[1]))
 				else:
-					result.append((idx, '%s\0%s' % (ar[1], ar[2])))
+					result.append((idx, '%s => %s' % (ar[1], ar[2])))
 		self._lastqmethod = 0
 		self._lastqstr = qstr
 		self._lastqtype = qtype

@@ -87,6 +87,7 @@ def lookup():
 	query = request.GET.get('q')
 	if not query:
 		abort(400, _('Empty query string.'))
+	urlparam = ''
 	d = {}
 	def detailfilter(basename, qstr, qtype, word, d=d):
 		if d.get(basename, 0) < 3:
@@ -95,8 +96,10 @@ def lookup():
 		return False
 	t = time.clock()
 	result = dicman.query(query, detailfilter=detailfilter)
+	suggest = dicman.suggest(query)
 	t = time.clock() - t
-	return template2('lookup.tpl', query=query, result=result, querytime=t)
+	return template2('lookup.tpl', query=query, result=result,
+			urlparam=urlparam, suggest=suggest, querytime=t)
 
 @route1('/manage')
 def manage():
