@@ -55,7 +55,8 @@ def _adddict(path):
 
 def loaddicts():
 	for name, path in wdcfg.dictlist():
-		_adddict(path)
+		if not _adddict(path):
+			wdcfg.deldict(name)
 
 def adddict(paths):
 	result = []

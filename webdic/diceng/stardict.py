@@ -46,7 +46,7 @@ def parseifo(path):
 		if d.get('version') != '2.4.2':
 			raise diceng.ParseError('Invalid ifo version')
 		return (d['bookname'].decode('utf-8'),
-				d['sametypesequence'],
+				d.get('sametypesequence'),
 				int(d['idxfilesize']),
 				int(d['wordcount']),
 				int(d.get('synwordcount', '0')),
@@ -73,6 +73,10 @@ def hascache(root, basename, ext, size=0):
 		logging.error(traceback.format_exc())
 		return False
 	return True
+
+def htmlquote(s):
+	return s.replace('&', '&amp;').replace('"', '&quot;').replace('<',
+			'&lt;').replace('>', '&gt;')
 
 def GzipFile(filename, mode="rb", compresslevel=9, fileobj=None):
 	f = gzip.GzipFile(filename,
@@ -505,8 +509,98 @@ class StardictEngine(diceng.BaseDictionaryEngine):
 		self._lastqparam = qparam
 		self._lastqresult = result
 		return result
+	def _render_one_type(self, typeseq, buf):
+		result = []
+		if typeseq == 't':
+			result.append('<div class="stardict_ipa">')
+			result.append('[%s]' % (htmlquote(buf),))
+			result.append('</div>')
+		elif typeseq == 'y':
+			result.append('<div class="stardict_pinyin">')
+			result.append('[%s]' % (htmlquote(buf),))
+			result.append('</div>')
+		elif typeseq == 'm':
+			result.append(htmlquote(buf).replace('\n', '<br>'))
+		elif typeseq == 'h':
+			result.append(buf) # TODO: resources
+		elif typeseq == 'x':
+			buf = buf.replace('\n', '<br>')
+			ar = buf.split('<')
+			result.append(ar[0])
+			for i in xrange(1, len(ar)):
+				p = ar[i].find('>')
+				if p < 0:
+					result.append('&lt;')
+					result.append(ar[i])
+					continue
+				s = ar[i][:p]
+				if s == 'abr':
+					result.append('<span class="stardict_abbreviation">')
+				elif s == 'blockquote':
+					result.append('<span class="stardict_blockquote">')
+				elif s == 'c' or s.startswith('c '):
+					q = s.find('c=')
+					if q > 0:
+						result.append('<font color=')
+						result.append(s[q+2:])
+						result.append('>')
+					else:
+						result.append('<font color="blue">')
+				elif s == '/c':
+					result.append('</font>')
+				elif s == 'ex':
+					result.append('<span class="stardict_example">')
+				elif s == 'k':
+					result.append('<span class="stardict_keyword">')
+				elif s == 'tr':
+					result.append('<span class="stardict_transliteration">[')
+				elif s == '/tr':
+					result.append(']</span>')
+				elif s.startswith('/') and (s == '/abr' or s == '/blockquote' or
+						s == '/ex' or s == '/k'):
+					result.append('</span>')
+				elif s == 'kref':
+					pass # TODO
+				elif s == '/kref':
+					pass # TODO
+				elif s == 'rref':
+					pass # TODO
+				elif s == '/rref':
+					pass # TODO
+				else:
+					result.append('<')
+					result.append(s)
+					result.append('>')
+				result.append(ar[i][p+1:])
+		elif typeseq == 'g':
+			pass # TODO
+		else:
+			result.append('<div class="stardict_unknown_type">')
+			result.append('Unsupported type ' + htmlquote(typeseq))
+			result.append('</div>')
+		return ''.join(result)
 	def _html_render(self, buf):
-		return buf
+		result = []
+		if not self._sametypeseq:
+			pass
+		else:
+			stseq = self._sametypeseq
+			while len(stseq) > 1:
+				c = stseq[0]
+				try:
+					if not c.isupper():
+						p = buf.index('\0')
+						result.append(self._render_one_type(c, buf[:p]))
+						buf = buf[p+1:]
+					else:
+						l = struct.unpack('!L', buf[:4])[0]
+						result.append(self._render_one_type(c, buf[4:4+l]))
+						buf = buf[4+l:]
+				except:
+					logging.error(traceback.format_exc())
+				stseq = stseq[1:]
+			result.append(self._render_one_type(stseq, buf))
+		return ''.join(result)
 	def _detail(self, wordid=None, word=None):
 		if wordid is not None:
 			ar = self._get_idx(wordid)

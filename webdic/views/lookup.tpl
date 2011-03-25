@@ -2,11 +2,7 @@
 <head>
 <meta http-equiv="content-type" content="text/html; charset=UTF-8">
 <title>{{query}} - WebDic</title>
-<style type="text/css">
-.dictname {
-font-size: large
-}
-</style>
+<link rel="stylesheet" type="text/css" href="/css/webdic.css">
 </head>
 <body>
 %if not result:
