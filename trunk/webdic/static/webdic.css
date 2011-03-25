@@ -1,0 +1,13 @@
+.dictname {
+font-size: large;
+}
+.stardict_abbreviation {
+color: green;
+font-style: italic;
+}
+.stardict_blockquote {
+text-indent: 1em;
+}
+.stardict_example {
+color: violet;
+}
