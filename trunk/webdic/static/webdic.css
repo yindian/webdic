@@ -6,8 +6,26 @@ color: green;
 font-style: italic;
 }
 .stardict_blockquote {
-text-indent: 1em;
+margin-left: 1em;
+}
+.stardict_bracket {
+color: black;
 }
 .stardict_example {
 color: violet;
+}
+.stardict_ipa {
+color: red;
+}
+.stardict_keyword {
+font-weight: bold;
+}
+.stardict_pinyin {
+color: red;
+}
+.stardict_transliteration {
+color: red;
+}
+.stardict_unknown_type {
+font-style: italic;
 }

@@ -108,7 +108,7 @@ def manage():
 			'promptmsg': None,
 			'focusdict': None,
 			}
-	def errmsg(s):
+	def errmsg(s, param=param):
 		param['promptmsg'] = s
 	if request.GET.has_key('add'):
 		path = request.GET.get('path')
@@ -120,6 +120,8 @@ def manage():
 			ar = dicman.adddict(path)
 			if ar:
 				param['focusdict'] = ar[0]
+			else:
+				errmsg(_('File "%s" is not recognized.') % (path,))
 	elif request.GET.has_key('up') or request.GET.has_key('down'):
 		focus = request.GET.get('focus')
 		dictlist = dicman.dictlist()
