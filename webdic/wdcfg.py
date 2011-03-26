@@ -177,6 +177,7 @@ def adddict(path, basename):
 	for n, p in _dictlist:
 		if p == path:
 			basename = n
+	basename = _cfg.optionxform(basename)
 	while True:
 		try:
 			s = _cfg.get('dictlist', basename)

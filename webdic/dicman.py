@@ -61,7 +61,7 @@ def loaddicts():
 def adddict(paths):
 	result = []
 	if type(paths) in types.StringTypes:
-		result.append((paths, _adddict(paths)))
+		result = _adddict(paths)
 	else:
 		for path in paths:
 			result.append((path, _adddict(path)))

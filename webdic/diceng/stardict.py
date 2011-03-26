@@ -42,10 +42,10 @@ def parseifo(path):
 	try:
 		if f.readline().rstrip('\n') != "StarDict's dict ifo file":
 			raise diceng.ParseError('Invalid ifo file header')
-		d = dict([l.rstrip('\n').split('=', 1) for l in f])
+		d = dict([l.rstrip('\n').decode('utf-8').split('=', 1) for l in f])
 		if d.get('version') != '2.4.2':
 			raise diceng.ParseError('Invalid ifo version')
-		return (d['bookname'].decode('utf-8'),
+		return (d['bookname'],
 				d.get('sametypesequence'),
 				int(d['idxfilesize']),
 				int(d['wordcount']),
@@ -307,7 +307,7 @@ class StardictEngine(diceng.BaseDictionaryEngine):
 			p = buf.index('\0')
 			if len(buf) - p < 9:
 				buf += self._idxf.read(8)
-			word = buf[:p]
+			word = buf[:p].decode('utf-8')
 			offset, length = struct.unpack('!LL', buf[p+1:p+9])
 			result = [collate(word), word, None, offset, length]
 		else:
@@ -317,7 +317,7 @@ class StardictEngine(diceng.BaseDictionaryEngine):
 				buf = self._synf.read(64)
 				while buf.find('\0') < 0:
 					buf += self._synf.read(64)
-				word = buf[:buf.index('\0')]
+				word = buf[:buf.index('\0')].decode('utf-8')
 				pos = self._refindices[idx]
 				self._idxf.seek(pos)
 				buf = self._idxf.read(64)
@@ -326,7 +326,7 @@ class StardictEngine(diceng.BaseDictionaryEngine):
 				p = buf.index('\0')
 				if len(buf) - p < 9:
 					buf += self._idxf.read(8)
-				refword = buf[:p]
+				refword = buf[:p].decode('utf-8')
 				offset, length = struct.unpack('!LL', buf[p+1:p+9])
 				result = [collate(word), word, refword, offset, length]
 			else:
@@ -338,7 +338,7 @@ class StardictEngine(diceng.BaseDictionaryEngine):
 				p = buf.index('\0')
 				if len(buf) - p < 9:
 					buf += self._idxf.read(8)
-				word = buf[:p]
+				word = buf[:p].decode('utf-8')
 				offset, length = struct.unpack('!LL', buf[p+1:p+9])
 				result = [collate(word), word, None, offset, length]
 		self._cache[idx] = result
@@ -512,13 +512,15 @@ class StardictEngine(diceng.BaseDictionaryEngine):
 	def _render_one_type(self, typeseq, buf):
 		result = []
 		if typeseq == 't':
-			result.append('<div class="stardict_ipa">')
-			result.append('[%s]' % (htmlquote(buf),))
-			result.append('</div>')
+			if buf:
+				result.append('<div class="stardict_ipa">')
+				result.append('<span class="stardict_bracket">[</span>%s<span class="stardict_bracket">]</span>' % (htmlquote(buf),))
+				result.append('</div>')
 		elif typeseq == 'y':
-			result.append('<div class="stardict_pinyin">')
-			result.append('[%s]' % (htmlquote(buf),))
-			result.append('</div>')
+			if buf:
+				result.append('<div class="stardict_pinyin">')
+				result.append('<span class="stardict_bracket">[</span>%s<span class="stardict_bracket">]</span>' % (htmlquote(buf),))
+				result.append('</div>')
 		elif typeseq == 'm':
 			result.append(htmlquote(buf).replace('\n', '<br>'))
 		elif typeseq == 'h':
@@ -553,9 +555,9 @@ class StardictEngine(diceng.BaseDictionaryEngine):
 				elif s == 'k':
 					result.append('<span class="stardict_keyword">')
 				elif s == 'tr':
-					result.append('<span class="stardict_transliteration">[')
+					result.append('<span class="stardict_bracket">[</span><span class="stardict_transliteration">')
 				elif s == '/tr':
-					result.append(']</span>')
+					result.append('</span><span class="stardict_bracket">]</span>')
 				elif s.startswith('/') and (s == '/abr' or s == '/blockquote' or
 						s == '/ex' or s == '/k'):
 					result.append('</span>')

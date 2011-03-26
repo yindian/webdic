@@ -40,6 +40,7 @@ Related queries:
 <form action="/lookup">
 <input maxlength="256" size="55" name="q" value="{{query}}" title="Query">
 <input value="Lookup" type="submit">
+<a href="/">Home</a>
 </form>
 </body>
 </html>
