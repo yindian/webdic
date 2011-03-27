@@ -53,6 +53,17 @@ wdcfg.load()
 dicman.diceng.setcachedir(wdcfg.CACHEDIR)
 dicman.loaddicts()
 
+def makequeryurl(word, **k):
+	return '/lookup?q=%s' % (urllib.escape(word),)
+
+def makedetailurl(basename, wordid, **k):
+	pass
+
+def makeresurl(basename, resid, **k):
+	pass
+
+dicman.diceng.setmakeurlfunc(makequeryurl, makedetailurl, makeresurl)
+
 @route1('/redir')
 def redir():
 	url = request.GET.get('url')

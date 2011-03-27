@@ -264,4 +264,19 @@ def setcachedir(path):
 def getcachedir():
 	return _cachedir
 
+def makequeryurl(word, **k):
+	pass
+
+def makedetailurl(basename, wordid, **k):
+	pass
+
+def makeresurl(basename, resid, **k):
+	pass
+
+def setmakeurlfunc(query=None, detail=None, resource=None):
+	global makequeryurl, makedetailurl, makeresurl
+	makequeryurl = query or makequeryurl
+	makedetailurl = detail or makedetailurl
+	makeresurl = resource or makeresurl
+
 # vim:ts=4:sw=4:noet:tw=80
