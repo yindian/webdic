@@ -240,7 +240,7 @@ class StardictEngine(diceng.BaseDictionaryEngine):
 					pos = p + 5
 					cr.append(pos | 0x80000000)
 					xx.append(buf[p+1:pos])
-				cr2.extend(struct.unpack('!%dL' % (len(xx),), ''.join(xx)))
+				cr2.extend(map(cr.__getitem__, struct.unpack('!%dL' % (len(xx),), ''.join(xx))))
 				assert len(ar) == self._wordcnt + self._syncnt
 				assert len(ar) == len(cr) - 1 == len(cr2)
 				br = collate('\n'.join(ar).decode('utf-8')).splitlines()
@@ -307,7 +307,12 @@ class StardictEngine(diceng.BaseDictionaryEngine):
 			p = buf.index('\0')
 			if len(buf) - p < 9:
 				buf += self._idxf.read(8)
-			word = buf[:p].decode('utf-8')
+			try:
+				word = buf[:p].decode('utf-8')
+			except:
+				logging.error('Error decoding %s for %s' % (`buf[:p]`, self._basename))
+				logging.error(traceback.format_exc())
+				word = buf[:p].decode('utf-8', 'replace')
 			offset, length = struct.unpack('!LL', buf[p+1:p+9])
 			result = [collate(word), word, None, offset, length]
 		else:
@@ -317,7 +322,13 @@ class StardictEngine(diceng.BaseDictionaryEngine):
 				buf = self._synf.read(64)
 				while buf.find('\0') < 0:
 					buf += self._synf.read(64)
-				word = buf[:buf.index('\0')].decode('utf-8')
+				try:
+					word = buf[:buf.index('\0')].decode('utf-8')
+				except:
+					p = buf.find('\0')
+					logging.error('Error decoding %s for %s' % (`buf[:p]`, self._basename))
+					logging.error(traceback.format_exc())
+					word = buf[:p].decode('utf-8', 'replace')
 				pos = self._refindices[idx]
 				self._idxf.seek(pos)
 				buf = self._idxf.read(64)
@@ -326,7 +337,12 @@ class StardictEngine(diceng.BaseDictionaryEngine):
 				p = buf.index('\0')
 				if len(buf) - p < 9:
 					buf += self._idxf.read(8)
-				refword = buf[:p].decode('utf-8')
+				try:
+					refword = buf[:p].decode('utf-8')
+				except:
+					logging.error('Error decoding %s for %s' % (`buf[:p]`, self._basename))
+					logging.error(traceback.format_exc())
+					refword = buf[:p].decode('utf-8', 'replace')
 				offset, length = struct.unpack('!LL', buf[p+1:p+9])
 				result = [collate(word), word, refword, offset, length]
 			else:
@@ -338,7 +354,12 @@ class StardictEngine(diceng.BaseDictionaryEngine):
 				p = buf.index('\0')
 				if len(buf) - p < 9:
 					buf += self._idxf.read(8)
-				word = buf[:p].decode('utf-8')
+				try:
+					word = buf[:p].decode('utf-8')
+				except:
+					logging.error('Error decoding %s for %s' % (`buf[:p]`, self._basename))
+					logging.error(traceback.format_exc())
+					word = buf[:p].decode('utf-8', 'replace')
 				offset, length = struct.unpack('!LL', buf[p+1:p+9])
 				result = [collate(word), word, None, offset, length]
 		self._cache[idx] = result
@@ -406,8 +427,11 @@ class StardictEngine(diceng.BaseDictionaryEngine):
 				else:
 					hi = mid
 			if lo == self._totalcnt or (lo < self._totalcnt and
+					self._get_idx(lo-1)[0].startswith(key) and
 					not self._get_idx(lo)[0].startswith(key)):
 				idxend = lo - 1
+			elif not self._get_idx(idxend)[0].startswith(key):
+				idxend -= 1
 			if qparam is not None:
 				if type(qparam) == types.IntType:
 					notexactnum = qparam

@@ -31,6 +31,7 @@ import wdcfg
 from wdcfg import reorderdict
 import diceng
 import types
+import logging
 
 dictpool = {}
 _usedpath = set()
@@ -101,8 +102,12 @@ def query(qstr, qtype=diceng.QRY_AUTO, cmd=diceng.CMD_QUERY, qparam=None, dictfi
 	dictlist = filter(dictpool.has_key, [n for n, p in wdcfg.dictlist()])
 	dictlist = filter(dictfilter, dictlist)
 	enginelist = map(dictpool.get, dictlist)
+	logging.info('Query begin cmd:%d, qstr:%s, qtype:%d' % (cmd, qstr, qtype))
 	diceng.asyncquery(enginelist, cmd=cmd, qstr=qstr, qtype=qtype, qparam=qparam)
 	result = diceng.fetchresults()
+	logging.info('Query end cmd:%d, qstr:%s, qtype:%d' % (cmd, qstr, qtype))
+	if cmd != diceng.CMD_QUERY:
+		return result
 	toshow = []
 	for engine, cmd, ar in result:
 		if ar:
@@ -110,7 +115,9 @@ def query(qstr, qtype=diceng.QRY_AUTO, cmd=diceng.CMD_QUERY, qparam=None, dictfi
 			for wordid, word in ar:
 				if detailfilter and detailfilter(engine.basename, qstr, qtype,
 						word):
+					logging.info('Get detail for %s %s' % (engine.basename, wordid))
 					content = engine.detail(wordid)[0][1]
+					logging.info('Get detail done for %s %s' % (engine.basename, wordid))
 				else:
 					content = None
 				entries.append((wordid, word, content))
@@ -132,63 +139,23 @@ if __name__ == '__main__':
 	import time
 	wdcfg.load()
 	diceng.setcachedir(wdcfg.CACHEDIR)
-	#pdb.set_trace()
 	t = time.clock()
-	ar = adddict(r'Y:\temp\temp\newoxford\mob\out\En-Ch-newoxford.ifo')
-	ar = adddict(r'Y:\temp\temp\newoxford\out\newoxford.ifo')
-	ar = adddict(r'Y:\temp\temp\qqdict\Data\out\ecceqq.ifo')
+	loaddicts()
 	diceng.diceng._taskqueue.join()
 	print 'Loading time:', time.clock() - t
-	print ar
 	print dictpool, _usedpath
 	t = time.clock()
-	print 'Hello:', pprint.pformat(query('hello'))
+	print '&*:', pprint.pformat(query('&*'))
 	print 'Query time:', time.clock() - t
-	t = time.clock()
-	print 'Hello:', pprint.pformat(query('Hello', diceng.QRY_BEGIN))
-	print 'Query time:', time.clock() - t
+	#d={}
+	#def detailfilter(basename, qstr, qtype, word, d=d):
+	#	if d.get(basename, 0) < 3:
+	#		d[basename] = d.get(basename, 0) + 1
+	#		return True
+	#	return False
 	#t = time.clock()
-	#print 'yours:', pprint.pformat(query('yours', diceng.QRY_BEGIN))
+	#print '(*:', query('(*', detailfilter=detailfilter)
 	#print 'Query time:', time.clock() - t
-	#t = time.clock()
-	#print 'y:'
-	#query('y', diceng.QRY_BEGIN)
-	#print 'Query time:', time.clock() - t
-	#t = time.clock()
-	#print 'y:', query('y', diceng.QRY_BEGIN, diceng.CMD_QRYNUM)
-	#print 'Query time:', time.clock() - t
-	#t = time.clock()
-	#print 'a:', query('a', diceng.QRY_BEGIN, diceng.CMD_QRYNUM)
-	#print 'Query time:', time.clock() - t
-	#t = time.clock()
-	#print 'a:'
-	#query('a', diceng.QRY_BEGIN)
-	#print 'Query time:', time.clock() - t
-	#t = time.clock()
-	#print ':', query('', diceng.QRY_BEGIN, diceng.CMD_QRYNUM)
-	#print 'Query time:', time.clock() - t
-	#print 'a:'
-	#query('a', diceng.QRY_BEGIN)
-	#print 'Query time:', time.clock() - t
-	#t = time.clock()
-	#print 'a:', pprint.pformat(query('a', diceng.QRY_BEGIN, qparam=10))
-	#print 'Query time:', time.clock() - t
-	#t = time.clock()
-	#print 'cop:'
-	#query('cop', cmd=diceng.CMD_DETAIL)
-	#print 'Query time:', time.clock() - t
-	time.sleep(6)
-	t = time.clock()
-	print 'he*o:', query('he*o', diceng.QRY_WILD)
-	print 'Query time:', time.clock() - t
-	t = time.clock()
-	print 'h*o:'
-	query('h*o', diceng.QRY_WILD)
-	print 'Query time:', time.clock() - t
-	t = time.clock()
-	print '*o:'
-	query('*o', diceng.QRY_WILD)
-	print 'Query time:', time.clock() - t
 	for s, p in dictlist():
 		deldict(s)
 	print dictpool, _usedpath
