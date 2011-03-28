@@ -162,6 +162,7 @@ class StardictEngine(diceng.BaseDictionaryEngine):
 		self._name, self._sametypeseq, idxsize, self._wordcnt, self._syncnt, d\
 				= parseifo(self._path)
 		root, ext = os.path.splitext(self._path)
+		self._resroot = os.path.join(os.path.split(self._path)[0], 'res')
 		try:
 			self._dicf = dictzip.DictzipFile(root + '.dict.dz', 'rb')
 		except IOError:
@@ -548,7 +549,46 @@ class StardictEngine(diceng.BaseDictionaryEngine):
 		elif typeseq == 'm':
 			result.append(htmlquote(buf).replace('\n', '<br>'))
 		elif typeseq == 'h':
-			result.append(buf) # TODO: resources
+			ar = buf.split('<')
+			result.append(ar[0])
+			for i in xrange(1, len(ar)):
+				p = ar[i].find('>')
+				if p < 0:
+					result.append('&lt;')
+					result.append(ar[i])
+					continue
+				s = ar[i][:p]
+				if s.startswith('a') or s.startswith('A'):
+					q = s.find('bword://')
+					if q > 0:
+						c = s[q-1]
+						if c == '=':
+							s = s[:q] + diceng.makequeryurl(s[q+8:])
+						else:
+							r = s.find(c, q)
+							s = s[:q] + diceng.makequeryurl(s[q+8:r]) + s[r:]
+				elif s.startswith('img') or s.startswith('IMG'):
+					q = s.find('src=')
+					if q < 0:
+						q = s.find('SRC=')
+					if q > 0:
+						q += 4
+						c = s[q]
+						if c == '"' or c == "'":
+							q += 1
+							r = s.find(c, q)
+						else:
+							r = len(s)
+						if s[q] == '\x1e' and s[r-1] == '\x1f':
+							t = s[q+1:r-1]
+						else:
+							t = s[q:r]
+						t = diceng.makeresurl(self._basename, t) or ''
+						s = s[:q] + t + s[r:]
+				result.append('<')
+				result.append(s)
+				result.append('>')
+				result.append(ar[i][p+1:])
 		elif typeseq == 'x':
 			buf = buf.replace('\n', '<br>')
 			ar = buf.split('<')
@@ -586,9 +626,11 @@ class StardictEngine(diceng.BaseDictionaryEngine):
 						s == '/ex' or s == '/k'):
 					result.append('</span>')
 				elif s == 'kref':
-					pass # TODO
+					result.append('<a href="')
+					result.append(diceng.makequeryurl(ar[i][p+1:]))
+					result.append('">')
 				elif s == '/kref':
-					pass # TODO
+					result.append('</a>')
 				elif s == 'rref':
 					pass # TODO
 				elif s == '/rref':
@@ -629,6 +671,7 @@ class StardictEngine(diceng.BaseDictionaryEngine):
 		return ''.join(result)
 	def _detail(self, wordid=None, word=None):
 		if wordid is not None:
+			wordid = int(wordid)
 			ar = self._get_idx(wordid)
 			# (collated word, word, refword, offset, length)
 			self._dicf.seek(ar[3])
@@ -643,6 +686,16 @@ class StardictEngine(diceng.BaseDictionaryEngine):
 				buf = self._dicf.read(ar[4])
 				result.append((ar[1], self._html_render(buf)))
 			return result
+	def _resource(self, resid):
+		d = {}
+		d['root'] = self._resroot
+		if type(resid) != types.UnicodeType:
+			try:
+				resid = resid.decode('utf-8')
+			except:
+				pass
+		d['filename'] = resid
+		return d
 
 def register():
 	print 'Register Stardict'

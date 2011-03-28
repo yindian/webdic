@@ -102,6 +102,11 @@ def query(qstr, qtype=diceng.QRY_AUTO, cmd=diceng.CMD_QUERY, qparam=None, dictfi
 	dictlist = filter(dictpool.has_key, [n for n, p in wdcfg.dictlist()])
 	dictlist = filter(dictfilter, dictlist)
 	enginelist = map(dictpool.get, dictlist)
+	if type(qstr) == types.StringType:
+		try:
+			qstr = qstr.decode('utf-8')
+		except:
+			logging.error('Query string is not UTF-8 encoded:' + qstr)
 	logging.info('Query begin cmd:%d, qstr:%s, qtype:%d' % (cmd, qstr, qtype))
 	diceng.asyncquery(enginelist, cmd=cmd, qstr=qstr, qtype=qtype, qparam=qparam)
 	result = diceng.fetchresults()
@@ -123,6 +128,29 @@ def query(qstr, qtype=diceng.QRY_AUTO, cmd=diceng.CMD_QUERY, qparam=None, dictfi
 				entries.append((wordid, word, content))
 			toshow.append((engine.basename, engine.name, entries))
 	return toshow
+
+def detail(basename, wordid):
+	'Return a tuple of word, detail by given dictionary and wordid.'
+	if not hasdict(basename):
+		return None, None
+	engine = dictpool[basename]
+	result = engine.detail(wordid)
+	return result and tuple(result[0]) or (None, None)
+
+def resource(basename, resid):
+	'Return a dictionary for the resource identified by given dictionary name'
+	'and resource id. The possible key items in the dictionary is:\n'
+	'1. "file": a file-like object\n'
+	'2. "filename": the relative local file name of the resource\n'
+	'3. "root": the root of local file name of the resource\n'
+	'4. "mimetype": the mime type\n'
+	'5. "buf": the buffer of the resource content\n'
+	if not hasdict(basename):
+		return {}
+	engine = dictpool[basename]
+	result = engine.resource(resid)
+	logging.info('Got result for %s %s: %s' % (basename, resid, `result`))
+	return result
 
 def suggest(qstr, qtype=diceng.QRY_AUTO, qparam=None, dictfilter=None):
 	'Return a list of search suggestion pattern strings'

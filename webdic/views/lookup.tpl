@@ -38,7 +38,7 @@ Related queries:
 %end
 <hr>
 <form action="/lookup">
-<input maxlength="256" size="55" name="q" value="{{query}}" title="Query">
+<input maxlength="256" name="q" value="{{query}}" title="Query">
 <input value="Lookup" type="submit">
 <a href="/">Home</a>
 </form>
