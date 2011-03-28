@@ -54,13 +54,13 @@ dicman.diceng.setcachedir(wdcfg.CACHEDIR)
 dicman.loaddicts()
 
 def makequeryurl(word, **k):
-	return '/lookup?q=%s' % (urllib.escape(word),)
+	return '/lookup?q=%s' % (urllib.quote(word),)
 
 def makedetailurl(basename, wordid, **k):
 	pass
 
 def makeresurl(basename, resid, **k):
-	pass
+	return '/resource?dict=%s&id=%s' % tuple(map(urllib.quote,(basename,resid)))
 
 dicman.diceng.setmakeurlfunc(makequeryurl, makedetailurl, makeresurl)
 
@@ -111,6 +111,26 @@ def lookup():
 	t = time.clock() - t
 	return template2('lookup.tpl', query=query, result=result,
 			urlparam=urlparam, suggest=suggest, querytime=t)
+
+@route1('/detail')
+def detail():
+	basename = request.GET.get('dict')
+	wordid = request.GET.get('id')
+	referer = request.header.get('Referer')
+	if not referer:
+		referer = request.header.get('Referrer')
+	if not basename or not wordid:
+		abort(400, _('Please specify dict and id.'))
+	word, detail = dicman.detail(basename, wordid)
+	return template2('detail.tpl', word=word, detail=detail, referer=referer)
+
+@route1('/resource')
+def resource():
+	basename = request.GET.get('dict')
+	resid = request.GET.get('id')
+	d = dicman.resource(basename, resid)
+	if d.get('filename') and d.get('root'):
+		return static_file(d['filename'], d['root'], mimetype=d.get('mimetype'))
 
 @route1('/manage')
 def manage():

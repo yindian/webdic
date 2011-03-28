@@ -95,10 +95,28 @@ class BaseDictionaryEngine(object):
 	def _detail(self, wordid=None, word=None): pass
 	def detail(self, wordid=None, word=None):
 		'Return detailed explanation of given word in a query result list. The '
-		'return value is a list of (word, detail) pairs.'
+		'return value is a list of (word, detail) pairs. If wordid is given, '
+		'the list must have at most one element.'
 		self.lock()
 		try:
 			return self._detail(wordid=wordid, word=word)
+		except:
+			raise
+		finally:
+			self.unlock()
+	def _resource(self, resid): pass
+	def resource(self, resid):
+		'Return a dictionary for the resource identified by given '
+		'resource id. The possible key items in the dictionary is:\n'
+		'1. "file": a file-like object\n'
+		'2. "filename": the local file name of the resource\n'
+		'3. "root": the root of local file name of the resource\n'
+		'4. "mimetype": the mime type\n'
+		'5. "buf": the buffer of the resource content\n'
+		'See dicman.resource'
+		self.lock()
+		try:
+			return self._resource(resid)
 		except:
 			raise
 		finally:
