@@ -57,7 +57,7 @@ def makequeryurl(word, **k):
 	return '/lookup?q=%s' % (urllib.quote(word),)
 
 def makedetailurl(basename, wordid, **k):
-	pass
+	return '/detail?dict=%s&id=%s' % tuple(map(urllib.quote,(basename,wordid)))
 
 def makeresurl(basename, resid, **k):
 	return '/resource?dict=%s&id=%s' % tuple(map(urllib.quote,(basename,resid)))

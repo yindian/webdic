@@ -29,6 +29,7 @@ License (MIT)
 import diceng
 import os, string, struct, re, gzip, dictzip
 import types
+import mimetypes
 try:
 	import cStringIO as StringIO
 except:
@@ -77,6 +78,9 @@ def hascache(root, basename, ext, size=0):
 def htmlquote(s):
 	return s.replace('&', '&amp;').replace('"', '&quot;').replace('<',
 			'&lt;').replace('>', '&gt;')
+
+def pango_span_to_html(s):
+	return s
 
 def GzipFile(filename, mode="rb", compresslevel=9, fileobj=None):
 	f = gzip.GzipFile(filename,
@@ -592,7 +596,7 @@ class StardictEngine(diceng.BaseDictionaryEngine):
 		elif typeseq == 'x':
 			buf = buf.replace('\n', '<br>')
 			ar = buf.split('<')
-			result.append(ar[0])
+			result.append(ar[0].replace(' ', '&nbsp;'))
 			for i in xrange(1, len(ar)):
 				p = ar[i].find('>')
 				if p < 0:
@@ -632,20 +636,85 @@ class StardictEngine(diceng.BaseDictionaryEngine):
 				elif s == '/kref':
 					result.append('</a>')
 				elif s == 'rref':
-					pass # TODO
+					res = ar[i][p+1:]
+					mimetype, encoding = mimetypes.guess_type(res)
+					if mimetype and mimetype.startswith('image'):
+						result.append('<img src="')
+						result.append(diceng.makeresurl(self._basename, res))
+						result.append('">')
+					else:
+						result.append('<a href="')
+						result.append(diceng.makeresurl(self._basename, res))
+						result.append('" class="stardict_reslink">')
+						result.append(res)
+						result.append('</a>')
+					p = len(ar[i])-1
 				elif s == '/rref':
-					pass # TODO
+					pass
 				else:
 					result.append('<')
 					result.append(s)
 					result.append('>')
-				result.append(ar[i][p+1:])
+				result.append(ar[i][p+1:].replace(' ', '&nbsp;'))
 		elif typeseq == 'g':
-			pass # TODO
+			buf = buf.replace('\n', '<br>')
+			ar = buf.split('<')
+			result.append(ar[0].replace(' ', '&nbsp;'))
+			for i in xrange(1, len(ar)):
+				p = ar[i].find('>')
+				if p < 0:
+					result.append('&lt;')
+					result.append(ar[i])
+					continue
+				s = ar[i][:p]
+				if s.startswith('span'):
+					s = pango_span_to_html(s)
+				result.append('<')
+				result.append(s)
+				result.append('>')
+				result.append(ar[i][p+1:].replace(' ', '&nbsp;'))
 		else:
 			result.append('<div class="stardict_unknown_type">')
 			result.append('Unsupported type ' + htmlquote(typeseq))
 			result.append('</div>')
+		result = ''.join(result)
+		if result.find('[[') < 0:
+			return result
+		# mediawiki tweak
+		ar = result.split('[[')
+		result = [ar[0]]
+		for i in xrange(1, len(ar)):
+			p = ar[i].find(']]')
+			wordid = -1
+			if p > 0:
+				q = ar[i].find('|', 0, p)
+				if q < 0:
+					s = ar[i][:p]
+				else:
+					s = ar[i][:q]
+				try:
+					s = s.decode('utf-8')
+				except:
+					pass
+				idx = self._locate(s)
+				ss = collate(s)
+				if self._get_idx(idx)[0] == ss:
+					wordid = idx
+					idx += 1
+					while (idx < self._totalcnt and self._get_idx(idx)[0] == ss
+							and self._get_idx(idx)[1] != s):
+						idx += 1
+					wordid = idx - 1
+			result.append('[[')
+			if wordid >= 0:
+				result.append('<a href="')
+				result.append(diceng.makedetailurl(self._basename, `wordid`))
+				result.append('">')
+				result.append(ar[i][:p])
+				result.append('</a>')
+				result.append(ar[i][p:])
+			else:
+				result.append(ar[i])
 		return ''.join(result)
 	def _html_render(self, buf):
 		result = []
