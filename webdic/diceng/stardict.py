@@ -30,6 +30,7 @@ import diceng
 import os, string, struct, re, gzip, dictzip
 import types
 import mimetypes
+import htmlentitydefs
 try:
 	import cStringIO as StringIO
 except:
@@ -79,8 +80,92 @@ def htmlquote(s):
 	return s.replace('&', '&amp;').replace('"', '&quot;').replace('<',
 			'&lt;').replace('>', '&gt;')
 
+def htmlunquote(s):
+	ar = s.split('&')
+	result = [ar[0]]
+	for i  in xrange(1, len(ar)):
+		p = ar[i].find(';')
+		if p < 0:
+			result.append('&')
+			result.append(ar[i])
+		else:
+			s = ar[i][:p]
+			if s.startswith('#'):
+				if s[1].lower() == 'x':
+					result.append(unichr(int(s[2:], 16)))
+				else:
+					result.append(unichr(int(s[2:])))
+			elif htmlentitydefs.name2codepoint.has_key(s):
+				result.append(unichr(htmlentitydefs.name2codepoint[s]))
+			else:
+				result.append('&')
+				result.append(s)
+				result.append(';')
+			result.append(ar[i][p+1:])
+	return ''.join(result)
+
 def pango_span_to_html(s):
-	return s
+	result = ['span style="']
+	ar = s[4:].strip().split('=')
+	attr = None
+	for i in xrange(len(ar)):
+		if attr is None:
+			attr = ar[i]
+		else:
+			if i != len(ar) - 1:
+				p = ar[i].rfind(' ')
+				if p < 0:
+					p = len(ar[i])
+			else:
+				p = len(ar[i])
+			s = ar[i][:p].strip()
+			if attr == 'font' or attr == 'font_desc':
+				result.append('font: ')
+			elif attr == 'font_family' or attr == 'face':
+				result.append('font-family: ')
+			elif attr == 'font_size' or attr == 'size':
+				result.append('font-size: ')
+			elif attr == 'font_style' or attr == 'style':
+				result.append('font-style: ')
+			elif attr == 'font_weight' or attr == 'weight':
+				result.append('font-weight: ')
+			elif attr == 'font_variant' or attr == 'variant':
+				result.append('font-variant: ')
+				if s == 'smallcaps':
+					s = 'small-caps'
+			elif attr == 'foreground' or attr == 'fgcolor' or attr == 'color':
+				result.append('color: ')
+			elif attr == 'background' or attr == 'bgcolor':
+				result.append('background: ')
+			elif attr == 'underline':
+				if s != 'none':
+					result.append('text-decoration: ')
+					s = 'underline'
+				else:
+					result.append('underline: ')
+			elif attr == 'strikethrough':
+				if s == 'true':
+					result.append('text-decoration: ')
+					s = 'line-through'
+				else:
+					result.append('strikethrough: ')
+			elif attr == 'letter_spacing':
+				result.append('letter-spacing: ')
+				try:
+					n = int(s)
+					s = '%gpt' % (n * 1. / 1024)
+				except:
+					pass
+			else:
+				result.append(attr)
+				result.append(': ')
+			if s.startswith('"') and s.endswith('"'):
+				s = s[1:-1]
+			result.append(s)
+			result.append('; ')
+			attr = ar[i][p+1:]
+	result.append('"')
+	return ''.join(result)
 
 def GzipFile(filename, mode="rb", compresslevel=9, fileobj=None):
 	f = gzip.GzipFile(filename,
@@ -550,7 +635,7 @@ class StardictEngine(diceng.BaseDictionaryEngine):
 				result.append('<div class="stardict_pinyin">')
 				result.append('<span class="stardict_bracket">[</span>%s<span class="stardict_bracket">]</span>' % (htmlquote(buf),))
 				result.append('</div>')
-		elif typeseq == 'm':
+		elif typeseq == 'm' or typeseq == 'w':
 			result.append(htmlquote(buf).replace('\n', '<br>'))
 		elif typeseq == 'h':
 			ar = buf.split('<')
@@ -678,7 +763,7 @@ class StardictEngine(diceng.BaseDictionaryEngine):
 			result.append('Unsupported type ' + htmlquote(typeseq))
 			result.append('</div>')
 		result = ''.join(result)
-		if result.find('[[') < 0:
+		if typeseq not in 'mwx' or result.find('[[') < 0:
 			return result
 		# mediawiki tweak
 		ar = result.split('[[')
@@ -696,6 +781,7 @@ class StardictEngine(diceng.BaseDictionaryEngine):
 					s = s.decode('utf-8')
 				except:
 					pass
+				s = htmlunquote(s)
 				idx = self._locate(s)
 				ss = collate(s)
 				if self._get_idx(idx)[0] == ss:
