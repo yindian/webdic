@@ -78,7 +78,7 @@ def hascache(root, basename, ext, size=0):
 
 def htmlquote(s):
 	return s.replace('&', '&amp;').replace('"', '&quot;').replace('<',
-			'&lt;').replace('>', '&gt;')
+			'&lt;').replace('>', '&gt;').replace("'", '&apos;')
 
 def htmlunquote(s):
 	ar = s.split('&')
@@ -166,6 +166,25 @@ def pango_span_to_html(s):
 			attr = ar[i][p+1:]
 	result.append('"')
 	return ''.join(result)
+
+pwphoneticmap = {
+		'A': 'æ',
+		'B': 'ɑ',
+		'C': 'ɔ',
+		'Q': 'ʌ',
+		'E': 'ә',
+		'Z': 'є',
+		'N': 'ŋ',
+		'W': 'θ',
+		'T': 'ð',
+		'F': 'ʃ',
+		'V': 'ʒ',
+		'L': 'ɚ',
+		'I': 'i',
+		'^': 'ɡ',
+		'9': 'ˏ',
+		'5': "'",
+		}
 
 def GzipFile(filename, mode="rb", compresslevel=9, fileobj=None):
 	f = gzip.GzipFile(filename,
@@ -636,7 +655,7 @@ class StardictEngine(diceng.BaseDictionaryEngine):
 				result.append('<span class="stardict_bracket">[</span>%s<span class="stardict_bracket">]</span>' % (htmlquote(buf),))
 				result.append('</div>')
 		elif typeseq == 'm' or typeseq == 'w':
-			result.append(htmlquote(buf).replace('\n', '<br>'))
+			result.append(htmlquote(buf).replace(' ', '&nbsp;').replace('\n', '<br>'))
 		elif typeseq == 'h':
 			ar = buf.split('<')
 			result.append(ar[0])
@@ -758,6 +777,30 @@ class StardictEngine(diceng.BaseDictionaryEngine):
 				result.append(s)
 				result.append('>')
 				result.append(ar[i][p+1:].replace(' ', '&nbsp;'))
+		elif typeseq == 'k':
+			ar = buf.split('<![CDATA[')
+			for i in xrange(1, len(ar)):
+				try:
+					p = ar[i].index(']]>')
+					s = ar[i][:p]
+					q = ar[i-1].rindex('<')
+					r = ar[i-1].index('>', q)
+					t = ar[i-1][q+1:r]
+					if t == '词典音标':
+						result.append('<span class="stardict_bracket">[</span><span class="stardict_transliteration">')
+						for c in s:
+							result.append(pwphoneticmap.get(c, c))
+						result.append('</span><span class="stardict_bracket">]</span>')
+					elif s.find('&') >= 0:
+						# TODO
+						result.append(htmlquote(s))
+					else:
+						result.append(htmlquote(s))
+				except:
+					result.append(htmlquote(ar[i]))
+					result.append('<br>')
+					continue
+			pass # TODO
 		else:
 			result.append('<div class="stardict_unknown_type">')
 			result.append('Unsupported type ' + htmlquote(typeseq))
@@ -781,7 +824,11 @@ class StardictEngine(diceng.BaseDictionaryEngine):
 					s = s.decode('utf-8')
 				except:
 					pass
-				s = htmlunquote(s)
+				s = htmlunquote(s).replace('_', ' ')
+				try:
+					s = s.replace(u'\u00A0', ' ')
+				except:
+					pass
 				idx = self._locate(s)
 				ss = collate(s)
 				if self._get_idx(idx)[0] == ss:
