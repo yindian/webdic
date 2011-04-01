@@ -185,6 +185,62 @@ pwphoneticmap = {
 		'9': 'ˏ',
 		'5': "'",
 		}
+pwphoneticmap2 = {
+		"8": ":",
+		"0": "Ŋ",
+		"¾": "ǔ",
+		"%": "ɔ",
+		"µ": "ě",
+		"³": "ā",
+		"!": "I",
+		"W": "ɛ",
+		"&": "U",
+		"…": "ə",
+		"¹": "ǐ",
+		"“": "′",
+		"*": "ə",
+		"6": "ˋ",
+		"+": "ɚ",
+		"”": "´",
+		"‘": "KH",
+		"$": "ɑ",
+		"7": "͵",
+		"'": "KH",
+		"½": "ō",
+		"¼": "ǒ",
+		"¶": "ē",
+		"º": "ī",
+		"G": "θ",
+		"9": "ʒ",
+		".": "ʃ",
+		"/": "ʒ",
+		"²": "ǎ",
+		"#": "æ",
+		"’": "N",
+		"Y": "t",
+		"H": "ð",
+		"÷": "ń",
+		"é": "ê",
+		"¿": "ū",
+		")": "ɜ",
+		"Ó": "ǒ",
+		"ï": "Ś",
+		"Ä": "ǐ",
+		}
+pwamptagmap = {
+		'b': ('<b>', '</b>'),
+		'B': ('<b>', '</b>'),
+		'I': ('<i>', '</i>'),
+		'+': ('<sup>', '</sup>'),
+		'-': ('<sub>', '</sub>'),
+		'x': ('<span style="color:blue; text-decoration:underline;">', '</span>'),
+		'X': ('<span style="color:blue;">', '</span><!-- X -->'),
+		'2': ('<span style="color:blue;">', '</span><!-- 2 -->'),
+		'l': ('<a href="%s" style="color:blue;">', '</a>'),
+		'D': ('<a href="%s" style="color:blue;">', '</a>'),
+		'L': ('<a href="%s" style="color:#008080;">', '</a>'),
+		'U': ('<a href="%s" style="color:#008080;">', '</a>'),
+		}
 
 def GzipFile(filename, mode="rb", compresslevel=9, fileobj=None):
 	f = gzip.GzipFile(filename,
@@ -792,15 +848,67 @@ class StardictEngine(diceng.BaseDictionaryEngine):
 							result.append(pwphoneticmap.get(c, c))
 						result.append('</span><span class="stardict_bracket">]</span>')
 					elif s.find('&') >= 0:
-						# TODO
-						result.append(htmlquote(s))
+						br = s.split('&')
+						result.append(htmlquote(br[0]))
+						stack = []
+						ahrefpos = []
+						phoneticpos = []
+						for j in xrange(1, len(br)):
+							if len(br[j]) > 2 and br[j][1] == '{':
+								cr = pwamptagmap.get(br[j][0])
+								if cr:
+									if cr[0].startswith('<a '):
+										ahrefpos.append(len(result))
+									elif br[j][0] in 'X2':
+										phoneticpos.append(len(result))
+									result.append(cr[0])
+									stack.append(cr[1])
+								else:
+									result.append('&amp;')
+									result.append(htmlquote(br[j][:2]))
+									stack.append(None)
+								q = 2
+							else:
+								result.append('&amp;')
+								q = 0
+							if stack:
+								p = br[j].find('}', q)
+								while stack and p > 0:
+									result.append(htmlquote(br[j][q:p]))
+									stack.extend([None]* br[j].count('{', q, p))
+									et = stack.pop()
+									if et is None:
+										result.append('}')
+									else:
+										if et == '</a>':
+											idx = ahrefpos.pop()
+											word = ''.join(result[idx+1:])
+											word = htmlunquote(word)
+											result[idx] = result[idx] % (
+													diceng.makequeryurl(
+														word),)
+										elif et.endswith('-->'):
+											idx = phoneticpos.pop() + 1
+											word = ''.join(result[idx:])
+											word = htmlunquote(word)
+											del result[idx:]
+											if et[-5] == 'X':
+												for c in word:
+													result.append(pwphoneticmap
+															.get(c, c))
+											else:
+												for c in word:
+													result.append(pwphoneticmap2
+															.get(c, c))
+										result.append(et)
+									q = p+1
+									p = br[j].find('}', q)
+							result.append(htmlquote(br[j][q:]))
 					else:
 						result.append(htmlquote(s))
 				except:
 					result.append(htmlquote(ar[i]))
-					result.append('<br>')
-					continue
-			pass # TODO
+				result.append('<br>')
 		else:
 			result.append('<div class="stardict_unknown_type">')
 			result.append('Unsupported type ' + htmlquote(typeseq))
@@ -820,6 +928,9 @@ class StardictEngine(diceng.BaseDictionaryEngine):
 					s = ar[i][:p]
 				else:
 					s = ar[i][:q]
+				r = s.find('#')
+				if r > 0:
+					s = s[:r]
 				try:
 					s = s.decode('utf-8')
 				except:
