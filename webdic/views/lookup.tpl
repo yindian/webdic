@@ -8,6 +8,7 @@
 %if not result:
 <div class="noresult">No results found.</div>
 %end
+%rescnt = 0
 %for basename, dictname, entries in result:
 <div class="onedict">
 <div class="dictname">{{dictname}}</div>
@@ -20,12 +21,13 @@
 </div>
 %end
 </li>
+%rescnt += 1
 %end
 </ul>
 </div>
 %end
 <div class="querytime">
-Query time: {{querytime}} seconds
+Found {{rescnt}} result(s) in {{querytime}} seconds
 </div>
 %if suggest:
 %import urllib

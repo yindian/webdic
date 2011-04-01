@@ -469,6 +469,7 @@ class StardictEngine(diceng.BaseDictionaryEngine):
 				f.close()
 			assert len(self._indices) == len(self._refindices) == totalcnt
 		self._totalcnt = len(self._indices)
+		self._origidxmap = None
 		self._info = '\n'.join([self._name,
 			'%d words' % (self._wordcnt,) + (self._syncnt and 
 				', %d synonyms (%d total)' % (self._syncnt, self._totalcnt)
@@ -482,6 +483,9 @@ class StardictEngine(diceng.BaseDictionaryEngine):
 		# index -> (collated word, word, refword, offset, length)
 		self._cache = {}
 	def _lazyload(self):
+		dr = range(self._totalcnt)
+		dr.sort(key=self._indices.__getitem__)
+		self._origidxmap = dr
 		#if self._colwords is None:
 		#	self._load_collated_word()
 		print 'lazy load done for', self._basename
@@ -684,8 +688,53 @@ class StardictEngine(diceng.BaseDictionaryEngine):
 				if pat.match(ar[0]):
 					result.append(i)
 		else:
-			#TODO
-			pass
+			# for non-prefix matching, collate is not used for performance!!!
+			p = 0
+			for p in xrange(len(qstr)):
+				if qstr[p] not in '*?':
+					break
+			if qstr[p] not in '*?':
+				extpat = re.compile(re.escape(qstr[p:]+'\0').replace(r'\*',
+					r'[^\0]*?').replace(r'\?', '[^\0]'), re.I)
+				possibles = []
+				self._idxf.seek(0)
+				buf = self._idxf.read()
+				maxidxlen = len(buf)
+				for m in extpat.finditer(buf):
+					possibles.append(m.end() + 8) # the offset of the next entry
+				if self._syncnt:
+					self._synf.seek(0)
+					buf = self._synf.read()
+					maxsynidxlen = len(buf) | 0x80000000
+					for m in extpat.finditer(buf):
+						possibles.append(0x80000000 | (m.end() + 4))
+				else:
+					maxsynidxlen = 0x80000000
+				if self._origidxmap:
+					dr = self._origidxmap
+				else:
+					dr = range(self._totalcnt)
+					dr.sort(key=self._indices.__getitem__)
+					self._origidxmap = dr
+				assert self._indices[dr[0]] == 0
+				possibleidx = []
+				cursor = 0
+				for pos in possibles:
+					while cursor < self._totalcnt and self._indices[
+							dr[cursor]]<pos:
+						cursor += 1
+					if cursor < self._totalcnt:
+						if self._indices[dr[cursor]] == pos or (
+								self._indices[dr[cursor]] == 0x80000000 and
+								pos == maxidxlen):
+							possibleidx.append(dr[cursor-1])
+					elif pos == maxidxlen or pos == maxsynidxlen:
+						possibleidx.append(dr[cursor-1])
+			else:
+				possibleidx = xrange(self._totalcnt)
+			for i in possibleidx:
+				if pat.match(self._get_idx(i)[0]):
+					result.append(i)
 			#for i in xrange(self._totalcnt):
 			#	if pat.match(self._colwords[i]):
 			#		result.append(i)
