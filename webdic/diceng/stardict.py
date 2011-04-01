@@ -694,8 +694,8 @@ class StardictEngine(diceng.BaseDictionaryEngine):
 				if qstr[p] not in '*?':
 					break
 			if qstr[p] not in '*?':
-				extpat = re.compile(re.escape(qstr[p:]+'\0').replace(r'\*',
-					r'[^\0]*?').replace(r'\?', '[^\0]'), re.I)
+				extpat = re.compile(re.escape(qstr[p:].encode('utf-8')+'\0'
+					).replace(r'\*', r'[^\0]*?').replace(r'\?', '[^\0]'), re.I)
 				possibles = []
 				self._idxf.seek(0)
 				buf = self._idxf.read()
