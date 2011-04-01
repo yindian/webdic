@@ -31,6 +31,7 @@ import os, string, struct, re, gzip, dictzip
 import types
 import mimetypes
 import htmlentitydefs
+import unicodedata
 try:
 	import cStringIO as StringIO
 except:
@@ -308,7 +309,51 @@ class CachedFile(file):
 # 1. collate('\n'.join(array)).splitlines() == map(collate, array)
 # 2. collate(collate(str)) == collate(str)
 # 3. Question mark and asterisk shall not be stripped
-collate = string.lower
+# 4. collate(str1 + str2) == collate(str1) + collate(str2)
+#collate = string.lower
+
+ignorechars = u' \\-‐‑‒–—―⁓〜～·・･"“”\u0300-\u0362\u0483-\u0489'
+mapcharsfrom = u'\u30a0-\u30f6\u30fd\u30fe'
+mapcharsto = u'\u3040-\u3096\u309d\u309e'
+collatemap = {}
+
+def expandcharrange(chars):
+	result = []
+	rngfrom= None
+	escape = False
+	for c in chars:
+		if escape:
+			result.append(c)
+			escape = False
+		elif c == '\\':
+			escape = True
+		elif rngfrom is not None:
+			for x in xrange(ord(rngfrom), ord(c) + 1):
+				result.append(unichr(x))
+			rngfrom = None
+		elif c == '-' and result:
+			rngfrom = result.pop()
+		else:
+			result.append(c)
+	if rngfrom:
+		result.append(rngfrom)
+		result.append('-')
+	return u''.join(result)
+
+def buildcollatemap(collatemap, ignorechars, mapcharsfrom, mapcharsto):
+	ignorechars = expandcharrange(ignorechars)
+	mapcharsfrom = expandcharrange(mapcharsfrom)
+	mapcharsto = expandcharrange(mapcharsto)
+	assert len(mapcharsfrom) == len(mapcharsto)
+	for c in ignorechars:
+		collatemap[ord(c)] = None
+	for f, t in zip(mapcharsfrom, mapcharsto):
+		collatemap[ord(f)] = ord(t)
+
+buildcollatemap(collatemap, ignorechars, mapcharsfrom, mapcharsto)
+
+collate = lambda s:unicodedata.normalize('NFKD',s).translate(collatemap).lower()
+# translate() is the most time-consuming, but we need it. re.sub is even slower.
 
 class StardictEngine(diceng.BaseDictionaryEngine):
 	@staticmethod
@@ -673,6 +718,28 @@ class StardictEngine(diceng.BaseDictionaryEngine):
 					result.append((idx, ar[1]))
 				else:
 					result.append((idx, '%s => %s' % (ar[1], ar[2])))
+			# large splitted meaning support tweak. XXX 01 or XXX 1
+			if qtype == diceng.QRY_EXACT:
+				if self._get_idx(self._locate(qstr+' 01'))[0] == collate(qstr+' 01'):
+					idxbeg = self._locate(qstr+' 01')
+					idxend = self._totalcnt
+				elif self._get_idx(self._locate(qstr+' 1'))[0] == collate(qstr+' 1'):
+					idxbeg = self._locate(qstr+' 1')
+					idxend = self._totalcnt
+				else:
+					idxbeg = idxend
+				cqstrlen = len(collate(qstr))
+				for idx in xrange(idxbeg, idxend):
+					ar = self._get_idx(idx)
+					s = ar[0][cqstrlen:]
+					try:
+						int(s)
+					except:
+						break
+					if ar[2] is None:
+						result.append((idx, ar[1]))
+					else:
+						result.append((idx, '%s => %s' % (ar[1], ar[2])))
 		elif qtype == diceng.QRY_WILD:
 			for idx in self._wild_search(qstr, qparam):
 				ar = self._get_idx(idx)
