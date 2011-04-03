@@ -509,6 +509,54 @@ class StardictEngine(diceng.BaseDictionaryEngine):
 		br = collate('\n'.join(ar).decode('utf-8')).splitlines()
 		br.sort()
 		self._colwords = br
+	def _load_all_cache(self):
+		if self._origidxmap is None:
+			dr = range(self._totalcnt)
+			dr.sort(key=self._indices.__getitem__)
+			self._origidxmap = dr
+		self._idxf.seek(0)
+		buf = self._idxf.read()
+		pos = 0
+		ar = [] # word
+		cr = [] # offset
+		dr = [] # length
+		while pos < len(buf):
+			p = buf.find('\0', pos)
+			ar.append(buf[pos:p])
+			cr.append(buf[p+1:p+5])
+			dr.append(buf[p+5:p+9])
+			pos = p + 9
+		cr = struct.unpack('!%dL' % (len(cr),), ''.join(cr))
+		dr = struct.unpack('!%dL' % (len(dr),), ''.join(dr))
+		if self._syncnt == 0:
+			br = collate('\n'.join(ar).decode('utf-8')).splitlines()
+			er = self._origidxmap
+			for idx in xrange(self._totalcnt):
+				if not self._cache.has_key(er[idx]):
+					self._cache[er[idx]] = (br[idx], ar[idx], None, cr[idx], dr[idx])
+		else:
+				self._synf.seek(0)
+				buf = self._synf.read()
+				xx = []
+				pos = 0
+				while pos < len(buf):
+					p = buf.find('\0', pos)
+					ar.append(buf[pos:p])
+					pos = p + 5
+					xx.append(buf[p+1:pos])
+				xx = struct.unpack('!%dL' % (len(xx),), ''.join(xx))
+				cr = list(cr)
+				dr = list(dr)
+				cr.extend(map(cr.__getitem__, xx))
+				dr.extend(map(dr.__getitem__, xx))
+				aar = [None] * self._wordcnt
+				aar.extend(map(ar.__getitem__, xx))
+				assert len(ar) == len(aar)
+				br = collate('\n'.join(ar).decode('utf-8')).splitlines()
+				er = self._origidxmap
+				for idx in xrange(self._totalcnt):
+					if not self._cache.has_key(er[idx]):
+						self._cache[er[idx]] = (br[idx], ar[idx], aar[idx], cr[idx], dr[idx])
 	def _get_idx(self, idx):
 		if self._cache.has_key(idx):
 			return self._cache[idx]
@@ -528,7 +576,7 @@ class StardictEngine(diceng.BaseDictionaryEngine):
 				logging.error(traceback.format_exc())
 				word = buf[:p].decode('utf-8', 'replace')
 			offset, length = struct.unpack('!LL', buf[p+1:p+9])
-			result = [collate(word), word, None, offset, length]
+			result = (collate(word), word, None, offset, length)
 		else:
 			if self._indices[idx] & 0x80000000:
 				pos = self._indices[idx] & 0x7FFFFFFF
@@ -558,7 +606,7 @@ class StardictEngine(diceng.BaseDictionaryEngine):
 					logging.error(traceback.format_exc())
 					refword = buf[:p].decode('utf-8', 'replace')
 				offset, length = struct.unpack('!LL', buf[p+1:p+9])
-				result = [collate(word), word, refword, offset, length]
+				result = (collate(word), word, refword, offset, length)
 			else:
 				pos = self._indices[idx]
 				self._idxf.seek(pos)
@@ -575,7 +623,7 @@ class StardictEngine(diceng.BaseDictionaryEngine):
 					logging.error(traceback.format_exc())
 					word = buf[:p].decode('utf-8', 'replace')
 				offset, length = struct.unpack('!LL', buf[p+1:p+9])
-				result = [collate(word), word, None, offset, length]
+				result = (collate(word), word, None, offset, length)
 		self._cache[idx] = result
 		return result
 	def _locate(self, word):
@@ -731,11 +779,23 @@ class StardictEngine(diceng.BaseDictionaryEngine):
 					elif pos == maxidxlen or pos == maxsynidxlen:
 						possibleidx.append(dr[cursor-1])
 				possibleidx.sort()
+				for i in possibleidx:
+					if pat.match(self._get_idx(i)[0]):
+						result.append(i)
 			else:
 				possibleidx = xrange(self._totalcnt)
-			for i in possibleidx:
-				if pat.match(self._get_idx(i)[0]):
-					result.append(i)
+				assert len(qstr) == qstr.count('*') + qstr.count('?')
+				if len(self._cache) < self._totalcnt:
+					t = time.clock()
+					self._load_all_cache()
+					print '=== %s load all cache time: %g' % (self._basename, time.clock() - t)
+				if qstr.count('*'):
+					result.extend(xrange(self._totalcnt))
+				else:
+					cnt = qstr.count('?')
+					for i in possibleidx:
+						if len(self._get_idx(i)[0]) == cnt:
+							result.append(i)
 			#for i in xrange(self._totalcnt):
 			#	if pat.match(self._colwords[i]):
 			#		result.append(i)
