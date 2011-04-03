@@ -173,7 +173,7 @@ if __name__ == '__main__':
 	print 'Loading time:', time.clock() - t
 	print dictpool, _usedpath
 	t = time.clock()
-	print '&*:', pprint.pformat(query('&*'))
+	print '????:', pprint.pformat(query('????'))
 	print 'Query time:', time.clock() - t
 	#d={}
 	#def detailfilter(basename, qstr, qtype, word, d=d):
