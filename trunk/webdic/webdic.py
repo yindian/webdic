@@ -141,7 +141,7 @@ def manage():
 			}
 	def errmsg(s, param=param):
 		param['promptmsg'] = s
-	if request.GET.has_key('add'):
+	if request.GET.get('add'):
 		path = request.GET.get('path')
 		if path.startswith('"') and path.endswith('"'):
 			path = path[1:-1]
@@ -153,7 +153,7 @@ def manage():
 				param['focusdict'] = ar[0]
 			else:
 				errmsg(_('File "%s" is not recognized.') % (path,))
-	elif request.GET.has_key('up') or request.GET.has_key('down'):
+	elif request.GET.get('up') or request.GET.get('down'):
 		focus = request.GET.get('focus')
 		dictlist = dicman.dictlist()
 		p = -1
@@ -162,7 +162,7 @@ def manage():
 				p = i
 				break
 		if p >= 0:
-			if request.GET.has_key('up'):
+			if request.GET.get('up'):
 				if p > 0:
 					dictlist[p-1:p+1] = dictlist[p-1:p+1][::-1]
 				else:
@@ -174,10 +174,10 @@ def manage():
 					dictlist.insert(0, dictlist.pop())
 			dicman.reorderdict(dictlist)
 			param['focusdict'] = focus
-	elif request.GET.has_key('del'):
+	elif request.GET.get('del'):
 		focus = request.GET.get('focus')
 		dicman.deldict(focus)
-	elif request.GET.has_key('focus'):
+	elif request.GET.get('focus'):
 		focus = request.GET.get('focus')
 		if dicman.hasdict(focus):
 			param['focusdict'] = focus

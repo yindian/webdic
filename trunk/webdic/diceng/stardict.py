@@ -46,7 +46,7 @@ def parseifo(path):
 		if f.readline().rstrip('\n') != "StarDict's dict ifo file":
 			raise diceng.ParseError('Invalid ifo file header')
 		d = dict([l.rstrip('\n').decode('utf-8').split('=', 1) for l in f])
-		if d.get('version') != '2.4.2':
+		if d.get('version') not in ('2.4.2', '3.0.0'):
 			raise diceng.ParseError('Invalid ifo version')
 		return (d['bookname'],
 				d.get('sametypesequence'),
@@ -695,7 +695,7 @@ class StardictEngine(diceng.BaseDictionaryEngine):
 					break
 			if qstr[p] not in '*?':
 				extpat = re.compile(re.escape(qstr[p:].encode('utf-8')+'\0'
-					).replace(r'\*', r'[^\0]*?').replace(r'\?', '[^\0]'), re.I)
+					).replace(r'\*', r'[^\0]*?').replace(r'\?', '[^\0]{,6}'), re.I)
 				possibles = []
 				self._idxf.seek(0)
 				buf = self._idxf.read()
@@ -730,6 +730,7 @@ class StardictEngine(diceng.BaseDictionaryEngine):
 							possibleidx.append(dr[cursor-1])
 					elif pos == maxidxlen or pos == maxsynidxlen:
 						possibleidx.append(dr[cursor-1])
+				possibleidx.sort()
 			else:
 				possibleidx = xrange(self._totalcnt)
 			for i in possibleidx:
@@ -1084,7 +1085,21 @@ class StardictEngine(diceng.BaseDictionaryEngine):
 	def _html_render(self, buf):
 		result = []
 		if not self._sametypeseq:
-			pass
+			while buf:
+				c = buf[0]
+				try:
+					if not c.isupper():
+						p = buf.index('\0')
+						if p < 0:
+							p = len(buf)
+						result.append(self._render_one_type(c, buf[1:p]))
+						buf = buf[p+1:]
+					else:
+						l = struct.unpack('!L', buf[1:5])[0]
+						result.append(self._render_one_type(c, buf[5:5+l]))
+						buf = buf[5+l:]
+				except:
+					logging.error(traceback.format_exc())
 		else:
 			stseq = self._sametypeseq
 			while len(stseq) > 1:
