@@ -447,7 +447,10 @@ class StardictEngine(diceng.BaseDictionaryEngine):
 					pos = p + 5
 					cr.append(pos | 0x80000000)
 					xx.append(buf[p+1:pos])
-				cr2.extend(map(cr.__getitem__, struct.unpack('!%dL' % (len(xx),), ''.join(xx))))
+				xx = struct.unpack('!%dL' % (len(xx),), ''.join(xx))
+				cr2.extend(map(cr.__getitem__, xx))
+				for i in reversed(xrange(len(xx))):
+					cr2[xx[i]] = cr[self._wordcnt + i]
 				assert len(ar) == self._wordcnt + self._syncnt
 				assert len(ar) == len(cr) - 1 == len(cr2)
 				br = collate('\n'.join(ar).decode('utf-8')).splitlines()
@@ -476,7 +479,7 @@ class StardictEngine(diceng.BaseDictionaryEngine):
 		self._lastidxstr = self._lastidxtype = self._lastidxparam = None
 		self._lastidxrange = None
 		self._lastlocatestr = self._lastlocatepos = None
-		# index -> (collated word, word, refword, offset, length)
+		# index -> (collated word, word, refword, altword, offset, length)
 		self._cache = {}
 	def _lazyload(self):
 		dr = range(self._totalcnt)
@@ -507,7 +510,7 @@ class StardictEngine(diceng.BaseDictionaryEngine):
 			er = self._origidxmap
 			for idx in xrange(self._totalcnt):
 				if not self._cache.has_key(er[idx]):
-					self._cache[er[idx]] = (br[idx], ar[idx], None, cr[idx], dr[idx])
+					self._cache[er[idx]] = (br[idx], ar[idx], None, None, cr[idx], dr[idx])
 		else:
 				self._synf.seek(0)
 				buf = self._synf.read()
@@ -525,12 +528,15 @@ class StardictEngine(diceng.BaseDictionaryEngine):
 				dr.extend(map(dr.__getitem__, xx))
 				aar = [None] * self._wordcnt
 				aar.extend(map(ar.__getitem__, xx))
+				abr = [None] * self._totalcnt
+				for i in reversed(xrange(len(xx))):
+					abr[xx[i]] = ar[self._wordcnt + i]
 				assert len(ar) == len(aar)
 				br = collate('\n'.join(ar).decode('utf-8')).splitlines()
 				er = self._origidxmap
 				for idx in xrange(self._totalcnt):
 					if not self._cache.has_key(er[idx]):
-						self._cache[er[idx]] = (br[idx], ar[idx], aar[idx], cr[idx], dr[idx])
+						self._cache[er[idx]] = (br[idx], ar[idx], aar[idx], abr[idx], cr[idx], dr[idx])
 	def _get_idx(self, idx):
 		if self._cache.has_key(idx):
 			return self._cache[idx]
@@ -550,7 +556,7 @@ class StardictEngine(diceng.BaseDictionaryEngine):
 				logging.error(traceback.format_exc())
 				word = buf[:p].decode('utf-8', 'replace')
 			offset, length = struct.unpack('!LL', buf[p+1:p+9])
-			result = (collate(word), word, None, offset, length)
+			result = (collate(word), word, None, None, offset, length)
 		else:
 			if self._indices[idx] & 0x80000000:
 				pos = self._indices[idx] & 0x7FFFFFFF
@@ -580,7 +586,7 @@ class StardictEngine(diceng.BaseDictionaryEngine):
 					logging.error(traceback.format_exc())
 					refword = buf[:p].decode('utf-8', 'replace')
 				offset, length = struct.unpack('!LL', buf[p+1:p+9])
-				result = (collate(word), word, refword, offset, length)
+				result = (collate(word), word, refword, None, offset, length)
 			else:
 				pos = self._indices[idx]
 				self._idxf.seek(pos)
@@ -597,7 +603,22 @@ class StardictEngine(diceng.BaseDictionaryEngine):
 					logging.error(traceback.format_exc())
 					word = buf[:p].decode('utf-8', 'replace')
 				offset, length = struct.unpack('!LL', buf[p+1:p+9])
-				result = (collate(word), word, None, offset, length)
+				if self._refindices[idx] & 0x80000000:
+					pos = self._refindices[idx] & 0x7FFFFFFF
+					self._synf.seek(pos)
+					buf = self._synf.read(64)
+					while buf.find('\0') < 0:
+						buf += self._synf.read(64)
+					try:
+						altword = buf[:buf.index('\0')].decode('utf-8')
+					except:
+						p = buf.find('\0')
+						logging.error('Error decoding %s for %s' % (`buf[:p]`, self._basename))
+						logging.error(traceback.format_exc())
+						altword = buf[:p].decode('utf-8', 'replace')
+				else:
+					altword = None
+				result = (collate(word), word, None, altword, offset, length)
 		self._cache[idx] = result
 		return result
 	def _locate(self, word):
@@ -788,8 +809,10 @@ class StardictEngine(diceng.BaseDictionaryEngine):
 			idxbeg, idxend = self._get_idx_range(qstr, qtype, qparam)
 			for idx in xrange(idxbeg, idxend):
 				ar = self._get_idx(idx)
-				if ar[2] is None:
+				if ar[2] is None and ar[3] is None:
 					result.append((idx, ar[1]))
+				elif ar[2] is None:
+					result.append((idx, '%s <= %s' % (ar[1], ar[3])))
 				else:
 					result.append((idx, '%s => %s' % (ar[1], ar[2])))
 			# large splitted meaning support tweak. XXX 01 or XXX 1
@@ -810,15 +833,19 @@ class StardictEngine(diceng.BaseDictionaryEngine):
 						int(s)
 					except:
 						break
-					if ar[2] is None:
+					if ar[2] is None and ar[3] is None:
 						result.append((idx, ar[1]))
+					elif ar[2] is None:
+						result.append((idx, '%s <= %s' % (ar[1], ar[3])))
 					else:
 						result.append((idx, '%s => %s' % (ar[1], ar[2])))
 		elif qtype == diceng.QRY_WILD:
 			for idx in self._wild_search(qstr, qparam):
 				ar = self._get_idx(idx)
-				if ar[2] is None:
+				if ar[2] is None and ar[3] is None:
 					result.append((idx, ar[1]))
+				elif ar[2] is None:
+					result.append((idx, '%s <= %s' % (ar[1], ar[3])))
 				else:
 					result.append((idx, '%s => %s' % (ar[1], ar[2])))
 		self._lastqmethod = 0
@@ -1147,16 +1174,16 @@ class StardictEngine(diceng.BaseDictionaryEngine):
 			wordid = int(wordid)
 			ar = self._get_idx(wordid)
 			# (collated word, word, refword, offset, length)
-			self._dicf.seek(ar[3])
-			buf = self._dicf.read(ar[4])
+			self._dicf.seek(ar[-2])
+			buf = self._dicf.read(ar[-1])
 			return [(ar[1], self._html_render(buf))]
 		else:
 			idxbeg, idxend = self._get_idx_range(word, diceng.QRY_EXACT)
 			result = []
 			for idx in xrange(idxbeg, idxend):
 				ar = self._get_idx(idx)
-				self._dicf.seek(ar[3])
-				buf = self._dicf.read(ar[4])
+				self._dicf.seek(ar[-2])
+				buf = self._dicf.read(ar[-1])
 				result.append((ar[1], self._html_render(buf)))
 			return result
 	def _resource(self, resid):
